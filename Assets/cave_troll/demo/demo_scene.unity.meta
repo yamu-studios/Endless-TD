@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: f5bd385feafffc44b8b89412421697e6
+timeCreated: 1524270986
+licenseType: Store
+DefaultImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 115707
+  packageName: 'Creature: Cave Troll'
+  packageVersion: 1.0
+  assetPath: Assets/cave_troll/demo/demo_scene.unity
+  uploadId: 242350

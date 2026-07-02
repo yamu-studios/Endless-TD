@@ -1,0 +1,20 @@
+fileFormatVersion: 2
+guid: 3bc9a2601685cc14487e6c3a4f5a05b6
+timeCreated: 1524618546
+licenseType: Store
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 115707
+  packageName: 'Creature: Cave Troll'
+  packageVersion: 1.0
+  assetPath: Assets/cave_troll/scripts/camera_follow.cs
+  uploadId: 242350
