@@ -1,0 +1,50 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: Muzzle
+  m_Shader: {fileID: 4800000, guid: 2b3ee114b05aac94e883d457c8eb9bf1, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _MainTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _NoiseTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _Alpha: 1
+    - _Brightness: 1.1
+    - _CoreSize: 0.18
+    - _ForwardBias: 0.2
+    - _GlowPower: 2.5
+    - _GlowSize: 0.45
+    - _NoiseAmount: 0.35
+    - _PulseAmount: 0.18
+    - _PulseSpeed: 8
+    - _ScrollSpeed: 2
+    m_Colors:
+    - _CoreColor: {r: 4.6148367, g: 2.3596616, b: 2.3596616, a: 1}
+    - _GlowColor: {r: 2.4283314, g: 1.4970891, b: 1.1866752, a: 1}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1

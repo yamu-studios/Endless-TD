@@ -1,0 +1,110 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: ToonPortalURP
+  m_Shader: {fileID: 4800000, guid: c7d136dd7157b9744bb56f77c70fcb98, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords:
+  - _ENABLENOISE_ON
+  - _ENABLERINGS_ON
+  - _ENABLESPARKLES_ON
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 1
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _FlowTex:
+        m_Texture: {fileID: 2800000, guid: caee0b4f2c558c840a8e7a67d733ca20, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _NoiseTex:
+        m_Texture: {fileID: 2800000, guid: 73545e8e78ec6aa4b8756b1f45ee37b5, type: 3}
+        m_Scale: {x: 0.5, y: 0.5}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _Alpha: 1
+    - _AlphaClip: 0
+    - _BandCount: 10
+    - _BandIntensity: 2
+    - _BandSharpness: 1.82
+    - _Brightness: 0.66
+    - _CenterGlow: 1
+    - _Cull: 0
+    - _Cutoff: 0.05
+    - _DepthFadeDistance: 0.15
+    - _Distortion: 0.166
+    - _EdgeIntensity: 5
+    - _EdgePower: 8
+    - _EdgeWidth: 0.001
+    - _EmissionIntensity: 2.73
+    - _EnableNoise: 1
+    - _EnableRings: 1
+    - _EnableSparkles: 1
+    - _Feather: 0.5
+    - _FlowSpeed: 1
+    - _InnerRadius: 0.35
+    - _NoiseAmount: 0.89
+    - _NoiseColorMix: 0.3
+    - _NoiseScale: 27.9
+    - _NoiseSpeed: 2.05
+    - _NoiseStrength: 0.133
+    - _Opacity: 1
+    - _OuterRadius: 0.9
+    - _OverallSpeed: 1.84
+    - _PortalRadius: 0.76
+    - _PortalSoftness: 0.291
+    - _PulseAmount: 0.083
+    - _PulseSpeed: 2
+    - _RimIntensity: 1.39
+    - _RimPower: 4.06
+    - _RimWidth: 0.08
+    - _RingCount: 3
+    - _RingDirection: -1
+    - _RingSpeed: 1
+    - _RingThickness: 0.02
+    - _SparkleBrightness: 4.54
+    - _SparkleCount: 28.4
+    - _SparkleSize: 0.015
+    - _SparkleSpeed: 2.56
+    - _SwirlArms: 9.03
+    - _SwirlFalloff: 1.5
+    - _SwirlSpeed: 10
+    - _SwirlStrength: 19.2
+    - _Tiling: 2
+    - _ToonSmoothness: 0.179
+    - _ToonSteps: 6.87
+    - _VeinPower: 8
+    - _ZWrite: 0
+    m_Colors:
+    - _BaseColor: {r: 0.6122818, g: 0, b: 1, a: 1}
+    - _ColorA: {r: 0.18698135, g: 0, b: 0.5676507, a: 1}
+    - _ColorB: {r: 0.8326022, g: 0.42830187, b: 1, a: 1}
+    - _ColorInner: {r: 1, g: 0.09803921, b: 0.9972853, a: 1}
+    - _ColorOuter: {r: 0.39999998, g: 0.09999997, b: 0.9, a: 1}
+    - _ColorRim: {r: 0.2980392, g: 0.9281528, b: 1, a: 1}
+    - _ColorVoid: {r: 0.19999981, g: 0, b: 1, a: 1}
+    - _EdgeColor: {r: 0.812335, g: 0.7764706, b: 1, a: 1}
+    - _FlowSpeed1: {r: 0.12, g: 0.25, b: 0, a: 0}
+    - _FlowSpeed2: {r: -0.18, g: 0.1, b: 0, a: 0}
+    - _HighlightColor: {r: 1, g: 1, b: 1, a: 1}
+    - _PortalCenter: {r: 0.5, g: 0.5, b: 0, a: 0}
+    - _PortalSquish: {r: 1, g: 1, b: 1, a: 0}
+    - _RingColor: {r: 1, g: 1, b: 1, a: 0.5}
+    - _SecondaryColor: {r: 0.9339989, g: 0.19999999, b: 1, a: 1}
+    - _SparkleColor: {r: 1, g: 1, b: 1, a: 1}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1

@@ -1,0 +1,63 @@
+Gradient Textures
+=================
+
+Help file
+1. About
+2. Naming system
+3. Tips & tricks
+4. Credits & contact
+
+
+
+1. About
+________
+
+This pack provides a complete set of simple, lightweight gradient textures for various visual effects or other graphical purposes.
+
+As a bonus, 5 solid textures with varying lightness levels are also included for any place you need a flat texture.
+
+
+
+2. Naming system
+________________
+
+The filenames work this way:
+
+Gradient_(Type)_(Number).png
+
+Types:
+BtT = Black to Transparent
+BtW = Black to White
+WtT = White to Transparent
+
+Number:
+1,2,3	 	Linear
+4,5 		Rectangular
+6,7,8,9 	Spherical
+10,11,12 	Radial
+
+
+
+3. Tips & tricks
+________________
+
+-There are many things that can be done using these seemingly basic textures. Some examples include camera masks/filters, fog, backgrounds, screen effects, heightmaps, scenery, special effects and more.
+
+-Aside from game development, the pack is just as usable in other applications, since its a set of 2D textures in .png format, which is universally usable everywhere.
+
+-You may notice that the preview in the inspector inside Unity fails to show .png images with alpha transparency properly (Unity v4.1), which causes the black to transparent textures appear completely black, while the white to transparent are completely white. Don't worry, the textures themselves are completely fine and work normally when applied to a material that supports transparency. You may also check the textures in the file explorer to see that they are indeed fine.
+
+-For the above reason, I've provided a help sheet to see every texture listed with its name displayed, so you can get around the issue with the preview window.
+
+
+
+4. License:
+____________________
+
+CC-BY 4.0
+Reactorcore
+http://www.reactorcoregames.com
+
+This work © 2024 by Reactorcore is licensed under CC BY 4.0. To view a copy of this license, visit http://creativecommons.org/licenses/by/4.0/
+
+(It means you can use them anywhere, even commercially. You only need to mention me (Reactorcore) and my website in the credits.)
