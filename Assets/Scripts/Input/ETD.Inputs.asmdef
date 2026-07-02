@@ -1,0 +1,20 @@
+{
+    "name": "ETD.Inputs",
+    "rootNamespace": "ETD.Inputs",
+    "references": [
+        "ETD.Core",
+        "ETD.Data",
+        "ETD.Grid",
+        "ETD.Gameplay",
+        "ETD.Turrets"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: ae02a625105083c4aafc7bb26f5d5f65
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 11400000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 355988
+  packageName: RPG Monster Couple PBR Polyart
+  packageVersion: 1.0
+  assetPath: Assets/RPGMonsterCouplePBRPolyart/Scene/DefaultPBR/GlobalVolumeProfile.asset
+  uploadId: 848340

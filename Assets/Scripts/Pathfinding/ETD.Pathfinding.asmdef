@@ -1,0 +1,18 @@
+{
+    "name": "ETD.Pathfinding",
+    "rootNamespace": "ETD.Pathfinding",
+    "references": [
+        "ETD.Core",
+        "ETD.Data",
+        "ETD.Grid"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

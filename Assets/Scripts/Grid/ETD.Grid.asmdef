@@ -1,0 +1,17 @@
+{
+    "name": "ETD.Grid",
+    "rootNamespace": "ETD.Grid",
+    "references": [
+        "ETD.Core",
+        "ETD.Data"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

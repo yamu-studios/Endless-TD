@@ -1,0 +1,14 @@
+{
+    "name": "ETD.Waves",
+    "rootNamespace": "ETD.Waves",
+    "references": ["ETD.Core","ETD.Data","ETD.Enemies","ETD.Grid"],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

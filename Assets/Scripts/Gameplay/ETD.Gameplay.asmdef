@@ -1,0 +1,25 @@
+{
+    "name": "ETD.Gameplay",
+    "rootNamespace": "ETD.Gameplay",
+    "references": [
+        "ETD.Core",
+        "ETD.Data",
+        "ETD.Grid",
+        "ETD.Pathfinding",
+        "ETD.Enemies",
+        "ETD.Turrets",
+        "ETD.Waves",
+        "ETD.Traits",
+        "ETD.Meta",
+        "Unity.TextMeshPro"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

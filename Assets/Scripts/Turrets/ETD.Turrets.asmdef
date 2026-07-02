@@ -1,0 +1,21 @@
+{
+    "name": "ETD.Turrets",
+    "rootNamespace": "ETD.Turrets",
+    "references": [
+        "ETD.Core",
+        "ETD.Data",
+        "ETD.Grid",
+        "ETD.Pathfinding",
+        "ETD.Enemies",
+        "ETD.Projectiles"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -1,0 +1,14 @@
+{
+    "name": "ETD.Enemies",
+    "rootNamespace": "ETD.Enemies",
+    "references": ["ETD.Core","ETD.Data","ETD.Grid","ETD.Pathfinding"],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -1,0 +1,23 @@
+{
+    "name": "ETD.Hub",
+    "rootNamespace": "ETD.Hub",
+    "references": [
+        "ETD.Core",
+        "ETD.Data",
+        "ETD.Meta",
+        "ETD.Traits",
+        "ETD.Turrets",
+        "ETD.UI",
+        "Unity.TextMeshPro",
+        "ETD.Gameplay"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

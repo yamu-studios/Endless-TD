@@ -1,0 +1,19 @@
+{
+    "name": "ETD.Meta",
+    "rootNamespace": "ETD.Meta",
+    "references": [
+        "ETD.Core",
+        "ETD.Data",
+        "ETD.Grid",
+        "ETD.Turrets"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

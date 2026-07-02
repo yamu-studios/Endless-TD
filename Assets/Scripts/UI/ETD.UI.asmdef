@@ -1,0 +1,29 @@
+{
+    "name": "ETD.UI",
+    "rootNamespace": "ETD.UI",
+    "references": [
+        "ETD.Core",
+        "ETD.Data",
+        "ETD.Gameplay",
+        "ETD.Turrets",
+        "ETD.Enemies",
+        "ETD.Traits",
+        "ETD.Meta",
+        "ETD.Grid",
+        "ETD.Waves",
+        "ETD.Pathfinding",
+        "Unity.TextMeshPro",
+        "ETD.Utilities",
+        "ETD.Inputs",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -1,0 +1,21 @@
+{
+    "name": "ETD.Core",
+    "rootNamespace": "ETD.Core",
+    "references": [
+        "GUID:6055be8ebefd69e48b49212b09b47b2f",
+        "GUID:15fc0a57446b3144c949da3e2b9737a9",
+        "GUID:df380645f10b7bc4b97d4f5eb6303d95",
+        "GUID:68bd7fdb68ef2684e982e8a9825b18a5",
+        "GUID:be281b7992e9e1840851a78ba9db107c",
+        "GUID:672260669ff6cd54b9044fc8bbc0bd75"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
