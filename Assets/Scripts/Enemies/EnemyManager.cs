@@ -84,7 +84,16 @@ namespace ETD.Enemies
             EventBus.Subscribe<PathRecalculatedEvent>(OnPathRecalculated);
         }
 
-        public void RegisterPool(EnemyData data, int preWarmCount = 256)
+        // FIX (soak-log confirmed): the previous default of 256 per enemy type
+        // meant 20 types x 256 = 5,120 permanently pooled skinned characters
+        // (~200k inactive GameObjects, ~56k ParticleSystems) even though the log
+        // shows no pool ever grew past its prewarm. Worse, a new type's first
+        // mid-wave appearance synchronously instantiated + activate-cycled all
+        // 256 in one frame. Wave spawns are staggered by per-command delays, so
+        // on-demand growth (one Instantiate per spawn miss) is naturally
+        // amortized; a small prewarm only needs to cover burst spawns such as
+        // splitter children.
+        public void RegisterPool(EnemyData data, int preWarmCount = 24)
         {
             if (_pools.ContainsKey(data.Id)) return;
 

@@ -51,7 +51,9 @@ namespace ETD.Data
         public float AttackSpeedPerLevel = 0.01f; // reduces interval
         public float RangePerLevel = 0.05f;
         public int BaseUpgradeCost = 30;
-        public float UpgradeCostMultiplier = 1.12f;
+
+        [Tooltip("Cost growth per level. Keep near 1.3: with +15% damage per level, 1.325 prices doubling a turret's damage at ~4x gold (cost ~ power^2). The old 1.75 priced it at ~16x (power^4), which made deep upgrades strictly worse than spamming new turrets.")]
+        public float UpgradeCostMultiplier = 1.325f;
 
         [Header("Unlock Condition")]
         [Tooltip("Short text shown instead of description when locked. E.g. 'Reach Wave 10'")]

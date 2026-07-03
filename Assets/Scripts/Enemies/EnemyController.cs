@@ -513,11 +513,50 @@ namespace ETD.Enemies
             EventBus.Publish(new EnemyKilledEvent
             {
                 EnemyId = InstanceId,
-                GoldReward = Data.GoldReward,
-                XPReward = Data.XPReward,
+                GoldReward = ComputeGoldReward(Data, Tier, WaveNumber),
+                XPReward = ComputeXPReward(Data, WaveNumber),
                 Position = transform.position,
                 EnemyTier = (int)Tier
             });
+        }
+
+        /// <summary>
+        /// Kill gold scales with wave so player income stays in the same growth
+        /// class as enemy HP (flat gold vs exponential HP is a guaranteed late-game
+        /// wall). Elite/boss kills mirror their HP tier multipliers so big kills
+        /// are big paydays. Static so UI (enemy info panel) can show the exact
+        /// value a kill will pay.
+        /// </summary>
+        public static int ComputeGoldReward(EnemyData data, EnemyTier tier, int waveNumber)
+        {
+            if (data == null)
+                return 0;
+
+            float gold = data.GoldReward * (1f + waveNumber * GameConstants.GOLD_KILL_WAVE_SCALE);
+
+            switch (tier)
+            {
+                case EnemyTier.Elite:
+                    gold *= GameConstants.ELITE_GOLD_MULTIPLIER;
+                    break;
+                case EnemyTier.Boss:
+                    gold *= GameConstants.BOSS_GOLD_MULTIPLIER;
+                    break;
+            }
+
+            return Mathf.Max(1, Mathf.RoundToInt(gold));
+        }
+
+        /// <summary>
+        /// Kill XP grows gently with wave so level-up pacing (and spec-card flow)
+        /// does not stall against the per-level XP requirement growth.
+        /// </summary>
+        public static float ComputeXPReward(EnemyData data, int waveNumber)
+        {
+            if (data == null)
+                return 0f;
+
+            return data.XPReward * (1f + waveNumber * GameConstants.XP_KILL_WAVE_SCALE);
         }
 
         private void ReachEnd()

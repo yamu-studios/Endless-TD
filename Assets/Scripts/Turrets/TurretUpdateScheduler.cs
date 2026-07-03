@@ -82,6 +82,24 @@ namespace ETD.Turrets
             RemoveAt(index);
         }
 
+        private void Awake()
+        {
+            // FIX (profiler-confirmed: Update() showed Calls=2): Game.unity contains
+            // a scene-placed scheduler, but _instance was only ever assigned inside
+            // EnsureInstance(). The scene instance ran without claiming the singleton,
+            // so the first turret Register() spawned a SECOND scheduler. Both ticked
+            // the same static heap every frame, doubling the per-frame managed-update
+            // budget (~2x the intended turret CPU cost). Claim the singleton here and
+            // destroy any duplicate.
+            if (_instance != null && _instance != this)
+            {
+                Destroy(gameObject);
+                return;
+            }
+
+            _instance = this;
+        }
+
         private static void EnsureInstance()
         {
             if (_instance != null)
@@ -246,8 +264,12 @@ namespace ETD.Turrets
 
         private void OnDestroy()
         {
-            if (_instance == this)
-                _instance = null;
+            // A destroyed DUPLICATE (see Awake) must not wipe the live scheduler's
+            // state — only the owning instance resets the statics on scene unload.
+            if (_instance != this)
+                return;
+
+            _instance = null;
 
             // FIX (bug #2 continued): Replace the static collections with fresh instances
             // so a subsequent scene load starts with a completely empty scheduler state.

@@ -42,11 +42,10 @@ namespace ETD.UI
         [SerializeField] private bool _showLaserTicks = true;
 
         private readonly Queue<FloatingDamageNumber> _pool = new();
-        private readonly HashSet<FloatingDamageNumber> _active = new();
+        private readonly List<FloatingDamageNumber> _active = new(160);
         private readonly Dictionary<int, float> _lastSpawnTimeByRuntimeId = new();
         private readonly Dictionary<int, PendingDamage> _pendingByRuntimeId = new();
         private readonly List<int> _pendingKeysToFlush = new(32);
-        private readonly List<FloatingDamageNumber> _activeToClear = new(32);
 
         // SaveSystem.Load can touch disk/json. Do not call it for every damage event.
         private bool _damageNumbersEnabled = true;
@@ -86,10 +85,30 @@ namespace ETD.UI
                 return;
             }
 
+            float now = Time.unscaledTime;
+
+            // Drive every live number from this single loop instead of one Unity
+            // Update() per instance (profiler: 99 separate Update calls cost more
+            // in invocation overhead than the actual visual math).
+            for (int i = _active.Count - 1; i >= 0; i--)
+            {
+                FloatingDamageNumber number = _active[i];
+                if (number == null)
+                {
+                    RemoveActiveAt(i);
+                    continue;
+                }
+
+                if (number.ManagedUpdate(now))
+                {
+                    RemoveActiveAt(i);
+                    Recycle(number);
+                }
+            }
+
             if (_pendingByRuntimeId.Count == 0)
                 return;
 
-            float now = Time.unscaledTime;
             _pendingKeysToFlush.Clear();
 
             foreach (var pair in _pendingByRuntimeId)
@@ -172,7 +191,7 @@ namespace ETD.UI
 
             _active.Add(number);
             _lastSpawnTimeByRuntimeId[runtimeId] = Time.unscaledTime;
-            number.Play(_container, GetWorldCamera(), GetUiCamera(), position, amount, critical || killingBlow, kind, ReleaseNumber);
+            number.Play(_container, GetWorldCamera(), GetUiCamera(), position, amount, critical || killingBlow, kind);
         }
 
         private Camera GetWorldCamera()
@@ -209,12 +228,18 @@ namespace ETD.UI
             return CreateNumber();
         }
 
-        private void ReleaseNumber(FloatingDamageNumber number)
+        private void RemoveActiveAt(int index)
+        {
+            int lastIndex = _active.Count - 1;
+            _active[index] = _active[lastIndex];
+            _active.RemoveAt(lastIndex);
+        }
+
+        private void Recycle(FloatingDamageNumber number)
         {
             if (number == null)
                 return;
 
-            _active.Remove(number);
             number.gameObject.SetActive(false);
             number.transform.SetParent(_container, false);
             _pool.Enqueue(number);
@@ -236,28 +261,10 @@ namespace ETD.UI
             _pendingByRuntimeId.Clear();
             _lastSpawnTimeByRuntimeId.Clear();
 
-            if (_active.Count == 0)
-                return;
-
-            _activeToClear.Clear();
-            foreach (FloatingDamageNumber number in _active)
-            {
-                if (number != null)
-                    _activeToClear.Add(number);
-            }
+            for (int i = _active.Count - 1; i >= 0; i--)
+                Recycle(_active[i]);
 
             _active.Clear();
-
-            for (int i = 0; i < _activeToClear.Count; i++)
-            {
-                FloatingDamageNumber number = _activeToClear[i];
-                if (number == null)
-                    continue;
-
-                number.gameObject.SetActive(false);
-                number.transform.SetParent(_container, false);
-                _pool.Enqueue(number);
-            }
         }
 
         private void Prewarm()
@@ -315,6 +322,16 @@ namespace ETD.UI
                 GameObject containerObject = new("FloatingDamageNumbers");
                 containerObject.transform.SetParent(_canvas != null ? _canvas.transform : transform, false);
                 _container = containerObject.AddComponent<RectTransform>();
+            }
+
+            // Nested canvas: damage numbers move/fade every frame, which would
+            // otherwise mark the entire parent HUD canvas dirty and force a full
+            // rebatch per frame (profiler: UGUI.Rendering.UpdateBatches 4.26ms).
+            // A nested canvas confines that churn to this container.
+            if (_container.GetComponent<Canvas>() == null)
+            {
+                Canvas nested = _container.gameObject.AddComponent<Canvas>();
+                nested.overrideSorting = false;
             }
 
             _container.anchorMin = Vector2.zero;

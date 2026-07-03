@@ -24313,8 +24313,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 679422268}
-  - component: {fileID: 679422269}
-  - component: {fileID: 679422270}
   - component: {fileID: 679422271}
   m_Layer: 0
   m_Name: ManagerInGame
@@ -24355,64 +24353,6 @@ Transform:
   - {fileID: 1429041302}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &679422269
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 679422267}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3b1e8a21c2f941b8b5f3b4b213970f88, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: ETD.Waves::ETD.Waves.DevelopmentWaveHotkeys
-  _waveManager: {fileID: 0}
-  _wave120Key: 107
-  _wave720Key: 108
-  wave1: 120
-  wave2: 260
-  _clearExistingEnemies: 1
-  _publishWaveStartedEvent: 1
-  _forceWaveActiveState: 1
---- !u!114 &679422270
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 679422267}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1dcbf2c9255b70c49b75b8c3f59148c7, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: ETD.Debugging::ETD.Debugging.NaturalSoakTestController
-  _autoStartOnPlay: 0
-  _enableHotkeys: 1
-  _startKey: 287
-  _stopKey: 290
-  _toggleModeKey: 284
-  _logSnapshotKey: 285
-  _mode: 0
-  _timeScale: 10
-  _targetWave: 80
-  _pauseAtTargetWave: 1
-  _skipPrepAutomatically: 1
-  _grantHugeLivesOnStart: 1
-  _soakLives: 999999
-  _grantGoldOnStart: 1
-  _extraGoldOnStart: 250000
-  _autoPickSpecCards: 1
-  _specCardIndex: 0
-  _autoEvolveTurrets: 1
-  _evolutionPath: 0
-  _modalAutoDelayUnscaled: 0.05
-  _grinderWaveActiveSeconds: 3
-  _logOnStartStop: 1
-  _logEveryNWaveStarts: 1
-  _logEveryNWaves: 5
-  _includeObjectCounts: 1
-  _includeEventBusCounts: 1
 --- !u!114 &679422271
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -33634,6 +33574,7 @@ MonoBehaviour:
   _useSpecializedLaserChallengeCheck: 1
   _profileOuterChainBatchTotal: 0
   _profileLaserBatchDetails: 0
+  _globalChallengeCheckInterval: 0.35
 --- !u!1 &956550507
 GameObject:
   m_ObjectHideFlags: 0
@@ -46308,7 +46249,7 @@ GameObject:
   - component: {fileID: 1236269727}
   - component: {fileID: 1236269730}
   - component: {fileID: 1236269729}
-  - component: {fileID: 1236269728}
+  - component: {fileID: 1236269731}
   m_Layer: 5
   m_Name: Container
   m_TagString: Untagged
@@ -46330,35 +46271,11 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 888015902}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -3.5, y: 0}
-  m_SizeDelta: {x: -33, y: 0}
-  m_Pivot: {x: 0.5, y: 0.5}
---- !u!114 &1236269728
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1236269726}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8a8695521f0d02e499659fee002a26c2, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.GridLayoutGroup
-  m_Padding:
-    m_Left: 0
-    m_Right: 0
-    m_Top: 0
-    m_Bottom: 0
-  m_ChildAlignment: 1
-  m_StartCorner: 0
-  m_StartAxis: 0
-  m_CellSize: {x: 360, y: 20}
-  m_Spacing: {x: 0, y: 10}
-  m_Constraint: 1
-  m_ConstraintCount: 1
+  m_AnchorMin: {x: 0.5, y: 1}
+  m_AnchorMax: {x: 0.5, y: 1}
+  m_AnchoredPosition: {x: -5, y: 0}
+  m_SizeDelta: {x: 339, y: 361}
+  m_Pivot: {x: 0.5, y: 1}
 --- !u!114 &1236269729
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -46397,6 +46314,32 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1236269726}
   m_CullTransparentMesh: 1
+--- !u!114 &1236269731
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1236269726}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 59f8146938fff824cb5fd77236b75775, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.VerticalLayoutGroup
+  m_Padding:
+    m_Left: 0
+    m_Right: 0
+    m_Top: 0
+    m_Bottom: 0
+  m_ChildAlignment: 1
+  m_Spacing: 10
+  m_ChildForceExpandWidth: 1
+  m_ChildForceExpandHeight: 0
+  m_ChildControlWidth: 0
+  m_ChildControlHeight: 0
+  m_ChildScaleWidth: 0
+  m_ChildScaleHeight: 0
+  m_ReverseArrangement: 0
 --- !u!4 &1239464932
 Transform:
   m_ObjectHideFlags: 0
@@ -56403,6 +56346,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: ETD.Core::ETD.Core.VFXManager
   _defaultPoolSize: 256
   _poolExpandBatchSize: 64
+  _maxPrewarmPerFrame: 4
   _vfxParent: {fileID: 1105886679}
   _slowStatusVFX: {fileID: 0}
   _burnStatusVFX: {fileID: 0}

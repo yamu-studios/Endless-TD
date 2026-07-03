@@ -1,9 +1,13 @@
 // ============================================================================
-// ETD.Enemies - EnemyHealthBar.cs  [AAA HOTFIX]
-// Robust pooled enemy health bar.
-// Fixes high-wave debug testing where HP bars stay hidden because damage is a
-// tiny fraction of huge scaled HP (ratio remains above the old 0.999 threshold).
-// Also fixes unsafe canvas initialization order and refreshes Camera.main.
+// ETD.Enemies - EnemyHealthBar.cs  [SHARED-CANVAS]
+// Pooled enemy health bar driven centrally by EnemyHealthBarSystem.
+// The per-enemy world-space Canvas is stripped at runtime and the bar content
+// (the prefab's own images, so styling is preserved exactly) is reparented
+// under one shared canvas: one canvas rebuild + batched draws instead of one
+// canvas per enemy, and one system LateUpdate instead of one per bar.
+// Behavior preserved from the previous per-canvas version: show-on-any-damage
+// timer, hide-when-full, elite/boss always visible with tier icons, delayed
+// fill, width scaling by base health, camera billboarding.
 // ============================================================================
 using UnityEngine;
 using UnityEngine.UI;
@@ -14,6 +18,7 @@ namespace ETD.Enemies
     public class EnemyHealthBar : MonoBehaviour
     {
         [Header("References")]
+        [Tooltip("Prefab-authored world-space canvas. At runtime its Canvas/CanvasScaler/GraphicRaycaster components are removed and the content is moved under the shared health bar canvas.")]
         [SerializeField] private Canvas _canvas;
         [SerializeField] private Image _fillImage;
         [SerializeField] private Image _backgroundImage;
@@ -62,31 +67,33 @@ namespace ETD.Enemies
         [SerializeField] private float _midThreshold = 0.6f;
 
         private EnemyController _enemy;
-        private Transform _cameraTransform;
-        private RectTransform _canvasRect;
+        private RectTransform _barRoot;
+        // Original parent of the bar content. The old code assigned the canvas
+        // localPosition = _offset each frame; TransformPoint on this anchor is
+        // the same world position now that the content lives elsewhere.
+        private Transform _barAnchor;
         private float _baseBarWidth;
         private float _delayedFillAmount = 1f;
         private float _visibleTimer;
         private float _lastObservedHealth = float.NaN;
         private bool _initialized;
+        private bool _barVisible;
+
+        /// <summary>Slot index inside EnemyHealthBarSystem. Managed by the system.</summary>
+        internal int RegisteredIndex = -1;
 
         private void Awake()
         {
             _baseBarWidth = Mathf.Max(0.01f, _barWidth);
             ResolveEnemy();
-            ResolveCanvas();
+            EnsureBarRoot();
             ApplySize();
-        }
-
-        private void Start()
-        {
-            ResolveCamera();
         }
 
         private void OnEnable()
         {
             ResolveEnemy();
-            ResolveCanvas();
+            EnsureBarRoot();
             ApplySize();
 
             _delayedFillAmount = 1f;
@@ -100,35 +107,53 @@ namespace ETD.Enemies
                 _delayedFillImage.fillAmount = 1f;
 
             RefreshTierIcon();
-
-            if (_canvas != null)
-                _canvas.enabled = !_hideWhenFull || IsPriorityTier();
+            SetBarVisible(!_hideWhenFull || IsPriorityTier());
 
             _initialized = true;
+            EnemyHealthBarSystem.Register(this);
         }
 
-        private void LateUpdate()
+        private void OnDisable()
         {
-            if (!_initialized)
+            EnemyHealthBarSystem.Unregister(this);
+
+            // The bar content lives under the shared canvas, not under this
+            // pooled enemy, so it must be hidden explicitly on release.
+            SetBarVisible(false);
+        }
+
+        private void OnDestroy()
+        {
+            // The reparented content is no longer a child of the enemy and
+            // would otherwise leak under the shared canvas.
+            if (_barRoot != null)
+                Destroy(_barRoot.gameObject);
+        }
+
+        /// <summary>
+        /// Called once per frame by EnemyHealthBarSystem. Logic is identical to
+        /// the previous per-component LateUpdate; only the visibility toggle
+        /// (root active state instead of canvas.enabled) and the billboard
+        /// source (shared per-frame rotation) changed.
+        /// </summary>
+        internal void ManagedLateUpdate(float deltaTime, Quaternion billboardRotation, bool hasBillboardRotation)
+        {
+            if (!_initialized || _barRoot == null)
                 return;
 
-            ResolveEnemy();
             if (_enemy == null)
-                return;
-
-            ResolveCanvas();
-            if (_canvas == null)
-                return;
-
-            if (_cameraTransform == null)
-                ResolveCamera();
+            {
+                ResolveEnemy();
+                if (_enemy == null)
+                    return;
+            }
 
             float maxHealth = SanitizeHealth(_enemy.MaxHealth, 0f, 1e30f);
 
             // Pooled enemies are enabled before Initialize() finishes. Wait until health is valid.
             if (maxHealth <= 0f)
             {
-                _canvas.enabled = false;
+                SetBarVisible(false);
                 return;
             }
 
@@ -147,7 +172,7 @@ namespace ETD.Enemies
             _lastObservedHealth = currentHealth;
 
             if (_visibleTimer > 0f)
-                _visibleTimer -= Time.deltaTime;
+                _visibleTimer -= deltaTime;
 
             if (_fillImage != null)
             {
@@ -160,7 +185,7 @@ namespace ETD.Enemies
                 _delayedFillAmount = Mathf.MoveTowards(
                     _delayedFillAmount,
                     ratio,
-                    _delayedFillSpeed * Time.deltaTime);
+                    _delayedFillSpeed * deltaTime);
                 _delayedFillImage.fillAmount = _delayedFillAmount;
             }
 
@@ -171,17 +196,31 @@ namespace ETD.Enemies
                 bool visiblyDamaged = ratio < _damagedVisibleThreshold;
                 bool recentlyDamaged = _visibleTimer > 0f;
                 bool priorityTier = IsPriorityTier();
-                _canvas.enabled = priorityTier || visiblyDamaged || recentlyDamaged;
+                SetBarVisible(priorityTier || visiblyDamaged || recentlyDamaged);
             }
             else
             {
-                _canvas.enabled = true;
+                SetBarVisible(true);
             }
 
-            _canvas.transform.localPosition = SanitizeVector3(_offset, Vector3.zero);
+            if (!_barVisible)
+                return;
 
-            if (_cameraTransform != null && IsFinite(_cameraTransform.forward))
-                _canvas.transform.forward = _cameraTransform.forward;
+            Transform anchor = _barAnchor != null ? _barAnchor : transform;
+            Vector3 worldPosition = anchor.TransformPoint(SanitizeVector3(_offset, Vector3.zero));
+            if (hasBillboardRotation)
+                _barRoot.SetPositionAndRotation(worldPosition, billboardRotation);
+            else
+                _barRoot.position = worldPosition;
+        }
+
+        private void SetBarVisible(bool visible)
+        {
+            if (_barRoot == null || _barVisible == visible)
+                return;
+
+            _barVisible = visible;
+            _barRoot.gameObject.SetActive(visible);
         }
 
         private bool IsPriorityTier()
@@ -214,29 +253,58 @@ namespace ETD.Enemies
                 _enemy = GetComponentInParent<EnemyController>();
         }
 
-        private void ResolveCamera()
+        /// <summary>
+        /// Resolves the bar content root, strips the per-enemy canvas components
+        /// so the content batches into the shared canvas, and reparents it there.
+        /// Runs the strip exactly once per instance; later calls only re-attach.
+        /// </summary>
+        private void EnsureBarRoot()
         {
-            _cameraTransform = Camera.main != null ? Camera.main.transform : null;
-        }
+            if (_barRoot != null)
+            {
+                EnemyHealthBarSystem.AttachBar(_barRoot);
+                return;
+            }
 
-        private void ResolveCanvas()
-        {
             if (_canvas == null)
                 _canvas = GetComponentInChildren<Canvas>(true);
 
             if (_canvas == null)
                 SetupCanvas();
 
-            if (_canvas != null && _canvasRect == null)
-                _canvasRect = _canvas.GetComponent<RectTransform>();
+            if (_canvas == null)
+                return;
 
-            if (_canvas != null && _tierIconImage == null)
-                CreateTierIcon(_canvas.transform);
+            RectTransform rect = _canvas.GetComponent<RectTransform>();
+            if (rect == null)
+                return;
+
+            _barRoot = rect;
+            _barAnchor = rect.parent != null ? rect.parent : transform;
+            _barVisible = rect.gameObject.activeSelf;
+
+            if (_tierIconImage == null)
+                CreateTierIcon(rect);
+
+            // Dependent components must go before the Canvas itself
+            // (CanvasScaler and GraphicRaycaster both require Canvas).
+            var scaler = _canvas.GetComponent<CanvasScaler>();
+            if (scaler != null)
+                Destroy(scaler);
+
+            var raycaster = _canvas.GetComponent<GraphicRaycaster>();
+            if (raycaster != null)
+                Destroy(raycaster);
+
+            Destroy(_canvas);
+            _canvas = null;
+
+            EnemyHealthBarSystem.AttachBar(_barRoot);
         }
 
         private void ApplySize()
         {
-            if (_canvasRect == null)
+            if (_barRoot == null)
                 return;
 
             float widthMultiplier = 1f;
@@ -251,7 +319,7 @@ namespace ETD.Enemies
 
             float safeWidth = SanitizeHealth(_baseBarWidth * widthMultiplier, _baseBarWidth, _baseBarWidth * Mathf.Max(1f, _maxWidthMultiplier));
             float safeHeight = SanitizeHealth(_barHeight, 0.01f, 10f);
-            _canvasRect.sizeDelta = new Vector2(safeWidth, safeHeight);
+            _barRoot.sizeDelta = new Vector2(safeWidth, safeHeight);
         }
 
         private static float SafeHealthRatio(float current, float max)
@@ -344,7 +412,9 @@ namespace ETD.Enemies
         }
 
         /// <summary>
-        /// Auto-creates the world-space canvas and UI elements when the prefab does not have one.
+        /// Auto-creates the world-space bar hierarchy when the prefab does not
+        /// have one. The Canvas created here is stripped again by EnsureBarRoot;
+        /// it only exists to keep this path identical to the prefab-authored one.
         /// </summary>
         private void SetupCanvas()
         {
@@ -356,11 +426,8 @@ namespace ETD.Enemies
             _canvas.renderMode = RenderMode.WorldSpace;
             _canvas.sortingOrder = 10;
 
-            var scaler = canvasGO.AddComponent<CanvasScaler>();
-            scaler.dynamicPixelsPerUnit = 100;
-
-            _canvasRect = canvasGO.GetComponent<RectTransform>();
-            _canvasRect.localScale = Vector3.one * 0.01f;
+            RectTransform canvasRect = canvasGO.GetComponent<RectTransform>();
+            canvasRect.localScale = Vector3.one * 0.01f;
 
             var bgGO = new GameObject("BG");
             bgGO.transform.SetParent(canvasGO.transform, false);
@@ -384,20 +451,7 @@ namespace ETD.Enemies
             _fillImage.fillMethod = Image.FillMethod.Horizontal;
             Stretch(_fillImage.rectTransform);
 
-            var iconGO = new GameObject("TierIcon");
-            iconGO.transform.SetParent(canvasGO.transform, false);
-            _tierIconImage = iconGO.AddComponent<Image>();
-            _tierIconImage.raycastTarget = false;
-            RectTransform iconRect = _tierIconImage.rectTransform;
-            iconRect.anchorMin = new Vector2(1f, 0.5f);
-            iconRect.anchorMax = new Vector2(1f, 0.5f);
-            iconRect.pivot = new Vector2(0f, 0.5f);
-            iconRect.sizeDelta = _tierIconSize;
-            iconRect.anchoredPosition = _tierIconOffset;
-            _tierIconImage.enabled = false;
-
-            ApplySize();
-            RefreshTierIcon();
+            CreateTierIcon(canvasGO.transform);
         }
 
         private static void Stretch(RectTransform rt)

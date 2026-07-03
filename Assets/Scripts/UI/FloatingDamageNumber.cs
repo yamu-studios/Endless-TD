@@ -51,7 +51,6 @@ namespace ETD.UI
         private float _durationRuntime;
         private float _scaleRuntime;
         private bool _active;
-        private Action<FloatingDamageNumber> _release;
 
         private void Awake()
         {
@@ -72,13 +71,12 @@ namespace ETD.UI
         }
 
         public void Play(RectTransform root, Camera worldCamera, Camera uiCamera, Vector3 worldPosition, float amount,
-            bool critical, int damageKind, Action<FloatingDamageNumber> release)
+            bool critical, int damageKind)
         {
             _root = root;
             _worldCamera = worldCamera != null ? worldCamera : Camera.main;
             _uiCamera = uiCamera;
             _worldPosition = worldPosition;
-            _release = release;
             _startTime = Time.unscaledTime;
             _durationRuntime = Mathf.Max(0.1f, _duration) * (critical ? 1.08f : 1f);
             _scaleRuntime = critical ? _criticalScale : 1f;
@@ -100,19 +98,27 @@ namespace ETD.UI
             UpdateVisual(0f);
         }
 
-        private void Update()
+        /// <summary>
+        /// Called once per frame by FloatingDamageNumberManager instead of a
+        /// per-instance Unity Update() (profiler: 99 separate Update calls cost
+        /// ~1ms in invocation overhead alone). Returns true when the number has
+        /// finished and should be recycled by the manager.
+        /// </summary>
+        internal bool ManagedUpdate(float now)
         {
             if (!_active)
-                return;
+                return true;
 
-            float t = Mathf.Clamp01((Time.unscaledTime - _startTime) / _durationRuntime);
+            float t = Mathf.Clamp01((now - _startTime) / _durationRuntime);
             UpdateVisual(t);
 
             if (t >= 1f)
             {
                 _active = false;
-                _release?.Invoke(this);
+                return true;
             }
+
+            return false;
         }
 
         private void UpdateVisual(float t)
@@ -155,14 +161,27 @@ namespace ETD.UI
                 screenPoint = new Vector3(_worldPosition.x, _worldPosition.y, 0f);
             }
 
-            bool converted = RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                _root,
-                new Vector2(screenPoint.x, screenPoint.y),
-                _uiCamera,
-                out localPoint);
+            if (_uiCamera == null)
+            {
+                // Screen Space Overlay fast path (profiler: the generic helper below
+                // builds a Ray and runs Plane.Raycast per number per frame — ~1ms at
+                // 99 live numbers). For an overlay canvas, screen coordinates ARE the
+                // canvas world coordinates, so a single InverseTransformPoint gives
+                // the identical local point.
+                Vector3 local = _root.InverseTransformPoint(screenPoint.x, screenPoint.y, 0f);
+                localPoint = new Vector2(local.x, local.y);
+            }
+            else
+            {
+                bool converted = RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                    _root,
+                    new Vector2(screenPoint.x, screenPoint.y),
+                    _uiCamera,
+                    out localPoint);
 
-            if (!converted)
-                return false;
+                if (!converted)
+                    return false;
+            }
 
             if (_clampToRoot)
             {

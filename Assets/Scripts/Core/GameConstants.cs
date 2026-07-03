@@ -15,7 +15,19 @@ namespace ETD.Core
 
         // Player
         public const int STARTING_LIVES = 20;
-        public const int STARTING_GOLD = 30000;
+        public const int STARTING_GOLD = 60;
+
+        // Economy scaling — kill gold grows with wave so income stays in the same
+        // growth class as enemy HP. goldPerKill = base * (1 + wave * GOLD_KILL_WAVE_SCALE),
+        // multiplied by tier so elite/boss kills mirror their HP multipliers.
+        // 0.07 (down from the initial 0.08 design) trims mid/late income ~10-12%.
+        public const float GOLD_KILL_WAVE_SCALE = 0.07f;
+        public const float ELITE_GOLD_MULTIPLIER = 5f;
+        public const float BOSS_GOLD_MULTIPLIER = 25f;
+
+        // Kill XP grows gently with wave so level-up pacing does not stall late
+        // (XP requirements grow per level while base kill XP is flat).
+        public const float XP_KILL_WAVE_SCALE = 0.05f;
         public const int MAX_TRAIT_SLOTS_DEFAULT = 2;
         public const int MAX_TRAIT_SLOTS_LIMIT = 5;
 

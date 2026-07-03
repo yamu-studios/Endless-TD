@@ -93,6 +93,17 @@ namespace ETD.Core
             ps.transform.localRotation = Quaternion.identity;
             // FIX: see Spawn() above — no SetActive(true) on reuse, ever.
             ps.Play(true);
+            // FIX (leak, soak-log confirmed): attached hit VFX previously had NO
+            // return path — nothing in the project calls StopAttached(), so every
+            // instance stayed parented under its enemy forever with IsAvailable
+            // false. Pooled enemies accumulated dead VFX children (+~4k inactive
+            // GameObjects and +~2k ParticleSystems per wave at wave 45+), every
+            // enemy respawn re-activated an ever-growing subtree, and the pool
+            // instantiated fresh replacements mid-combat indefinitely. Auto-return
+            // exactly like Spawn(): when the one-shot finishes, the instance is
+            // reparented back to the VFX root and made available again.
+            // StopAttached() remains for effects that must be cut short early.
+            StartCoroutine(ReturnWhenDone(id, ps));
             return ps;
         }
 

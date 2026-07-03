@@ -46,7 +46,11 @@ namespace ETD.UI
 
         private void Awake()
         {
-            _closeButton?.onClick.AddListener(Close);
+            if (_closeButton != null)
+                _closeButton.onClick.AddListener(Close);
+            else
+                PanelCloseButton.Ensure(_panel, Close);
+
             EnsureDraggable();
             if (_panel != null) _panel.SetActive(false);
         }

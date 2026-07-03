@@ -297,14 +297,7 @@ namespace ETD.UI
 
         private void ApplyVideoSettings(SaveData save)
         {
-            QualitySettings.SetQualityLevel(save.QualityLevel, true);
-            QualitySettings.vSyncCount = save.VSyncEnabled ? 1 : 0;
-
-            FullScreenMode mode = IndexToFullScreenMode(save.WindowModeIndex);
-            Screen.fullScreenMode = mode;
-
-            if (save.ResolutionWidth > 0 && save.ResolutionHeight > 0)
-                Screen.SetResolution(save.ResolutionWidth, save.ResolutionHeight, mode);
+            VideoSettingsApplier.Apply(save);
         }
 
         private Resolution[] BuildResolutionList()
@@ -560,12 +553,8 @@ namespace ETD.UI
             SaveSystem.Save(save);
         }
 
-        private static FullScreenMode IndexToFullScreenMode(int index) => index switch
-        {
-            1 => FullScreenMode.Windowed,
-            2 => FullScreenMode.FullScreenWindow,
-            _ => FullScreenMode.ExclusiveFullScreen
-        };
+        private static FullScreenMode IndexToFullScreenMode(int index) =>
+            VideoSettingsApplier.IndexToFullScreenMode(index);
 
         // =================================================================
         // CALLBACKS — SOUND

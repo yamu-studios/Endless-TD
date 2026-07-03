@@ -108,6 +108,7 @@ namespace ETD.Meta
             _killSpreeTimer = 0f;
             _killSpreeCount = 0;
             _runStartTime = Time.time;
+            _pendingDamageProgress = 0f;
             _currentBurningCount = 0;
             _maxChainHitsPerEvent = 0;
             _laserTimeAccumulated = 0f;
@@ -142,6 +143,7 @@ namespace ETD.Meta
             ChainLightningHitBatcher.InvalidateTelemetrySink();
 
             EventBus.Subscribe<EnemyKilledEvent>(OnEnemyKilled);
+            EventBus.Subscribe<EnemyDamagedEvent>(OnEnemyDamaged);
             EventBus.Subscribe<WaveCompletedEvent>(OnWaveCompleted);
             EventBus.Subscribe<TurretPlacedEvent>(OnTurretPlaced);
             EventBus.Subscribe<TurretUpgradedEvent>(OnTurretUpgraded);
@@ -466,10 +468,31 @@ namespace ETD.Meta
         //}
 
         
+        // DealTotalDamage now tracks REAL damage dealt via EnemyDamagedEvent.
+        // The old proxy (kill gold * 10) drifted badly once kill gold started
+        // scaling with wave, and never matched the challenge targets, which were
+        // authored in damage units (e.g. "Overkill" = 1,000,000).
+        // Accumulated locally per hit (cheap) and flushed into persistent
+        // progress on wave complete / game over instead of per event.
+        private float _pendingDamageProgress;
+
+        private void OnEnemyDamaged(EnemyDamagedEvent evt)
+        {
+            if (evt.Amount > 0f)
+                _pendingDamageProgress += evt.Amount;
+        }
+
+        private void FlushPendingDamageProgress()
+        {
+            if (_pendingDamageProgress <= 0f)
+                return;
+
+            AddProgress(ChallengeConditionType.DealTotalDamage, _pendingDamageProgress);
+            _pendingDamageProgress = 0f;
+        }
+
         private void OnEnemyKilled(EnemyKilledEvent evt)
         {
-            AddProgress(ChallengeConditionType.DealTotalDamage, evt.GoldReward * 10f);
-
             // Kill spree: 50 kills within 5 seconds
             if (Time.time - _killSpreeTimer <= 5f)
             {
@@ -492,6 +515,8 @@ namespace ETD.Meta
 
         private void OnWaveCompleted(WaveCompletedEvent evt)
         {
+            FlushPendingDamageProgress();
+
             float minutesSurvived = (Time.time - _runStartTime) / 60f;
             SetProgress(ChallengeConditionType.SurviveMinutes, minutesSurvived);
             SetProgress(ChallengeConditionType.ReachWave, evt.WaveNumber);
@@ -1416,6 +1441,7 @@ namespace ETD.Meta
 
         private void OnGameOver(GameOverEvent evt)
         {
+            FlushPendingDamageProgress();
             FlushProjectileChallengeCheck();
             // FIX: game-over is the final save of the run — must never be silently
             // skipped by the global throttle, regardless of how recently the last
@@ -1432,6 +1458,7 @@ namespace ETD.Meta
             ChainLightningHitBatcher.WantsEnemyIds = true;
 
             EventBus.Unsubscribe<EnemyKilledEvent>(OnEnemyKilled);
+            EventBus.Unsubscribe<EnemyDamagedEvent>(OnEnemyDamaged);
             EventBus.Unsubscribe<WaveCompletedEvent>(OnWaveCompleted);
             EventBus.Unsubscribe<TurretPlacedEvent>(OnTurretPlaced);
             EventBus.Unsubscribe<TurretUpgradedEvent>(OnTurretUpgraded);

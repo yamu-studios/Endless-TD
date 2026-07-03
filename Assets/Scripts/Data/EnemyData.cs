@@ -74,7 +74,15 @@ namespace ETD.Data
         public float DebuffPercent = 0.2f;
 
         [Header("Scaling")]
-        public float HealthScalePerWave = 1.05f;
+        [Tooltip("Per-wave HP growth rate at wave 0. 1.06 = +6% per wave early game.")]
+        public float HealthGrowthBase = 1.06f;
+
+        [Tooltip("How much extra growth rate is added per wave. 0.0008 means the per-wave growth slowly ramps from +6% toward the cap, so late waves accelerate while early waves stay approachable.")]
+        public float HealthGrowthRampPerWave = 0.0008f;
+
+        [Tooltip("Maximum extra growth added by the ramp. 0.06 caps the per-wave growth at HealthGrowthBase + 0.06 (i.e. +12% per wave from ~wave 75 on). The ramp — not a fixed exponent — is what eventually ends a run.")]
+        public float HealthGrowthRampCap = 0.06f;
+
         public float SpeedScalePerWave = 1.002f;
 
         [Header("Runtime Safety")]
@@ -92,14 +100,21 @@ namespace ETD.Data
 
         public float GetScaledHealth(int waveNumber, EnemyTier tier)
         {
+            // Ramping-exponent curve: HP(w) = base * (B + avgRamp(w))^w, where the
+            // per-wave growth rate itself climbs from HealthGrowthBase toward
+            // HealthGrowthBase + HealthGrowthRampCap. Early waves grow ~+6%/wave
+            // (approachable, fast pacing), late waves ~+12%/wave (the run must end).
+            // avgRamp is the average of min(cap, ramp*i) over waves 1..w, so the
+            // curve is smooth, monotonic, and O(1) to evaluate.
+            //
             // Use double for the exponential calculation, then clamp back to float.
-            // At waves like 835+, 1.1^wave can push elite HP beyond float range.
-            // Infinity/Infinity health ratios create NaN UI fill values, which Unity Canvas
-            // reports as "Invalid AABB in AABB".
+            // Very high endless waves can push elite HP beyond float range;
+            // Infinity/Infinity health ratios create NaN UI fill values, which Unity
+            // Canvas reports as "Invalid AABB in AABB".
             int safeWave = Mathf.Max(0, waveNumber);
             double baseHealth = Math.Max(1.0, MaxHealth);
-            double scale = Math.Max(0.0001, HealthScalePerWave);
-            double hp = baseHealth * Math.Pow(scale, safeWave);
+            double growth = GetHealthGrowthForWave(safeWave);
+            double hp = baseHealth * Math.Pow(growth, safeWave);
 
             switch (tier)
             {
@@ -112,6 +127,39 @@ namespace ETD.Data
             }
 
             return ClampFiniteToFloat(hp, 1f, GetSafeHealthCap());
+        }
+
+        /// <summary>
+        /// Effective per-wave growth factor used as the exponent base at the given
+        /// wave: HealthGrowthBase plus the historical average of the capped ramp.
+        /// Exposed so tools (balance simulator) can plot the same curve the game uses.
+        /// </summary>
+        public double GetHealthGrowthForWave(int waveNumber)
+        {
+            double baseGrowth = Math.Max(1.0, HealthGrowthBase);
+            double ramp = Math.Max(0.0, HealthGrowthRampPerWave);
+            double cap = Math.Max(0.0, HealthGrowthRampCap);
+
+            if (waveNumber <= 0 || ramp <= 0.0 || cap <= 0.0)
+                return baseGrowth;
+
+            double capWave = cap / ramp; // wave at which the ramp saturates
+            double avgRamp;
+
+            if (waveNumber <= capWave)
+            {
+                // Average of ramp*i for i = 1..w
+                avgRamp = ramp * (waveNumber + 1) * 0.5;
+            }
+            else
+            {
+                // Ramping portion (1..capWave) plus saturated portion (capWave..w)
+                double rampSum = cap * capWave * 0.5;
+                double flatSum = cap * (waveNumber - capWave);
+                avgRamp = (rampSum + flatSum) / waveNumber;
+            }
+
+            return baseGrowth + Math.Min(cap, avgRamp);
         }
 
         public float GetScaledSpeed(int waveNumber)

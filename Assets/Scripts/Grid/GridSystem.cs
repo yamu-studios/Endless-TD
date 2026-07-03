@@ -50,6 +50,8 @@ namespace ETD.Grid
         [Tooltip("Max distance between tile centers to be considered neighbors")]
         [SerializeField] private float _neighborThreshold = 1.5f;
 
+        private bool _pathfinderMissingLogged;
+
         // Dictionary-based storage instead of 2D array — supports any grid shape
         private readonly Dictionary<Vector2Int, GridCell> _cells = new();
         private readonly List<Vector2Int> _allPositions = new();
@@ -375,6 +377,17 @@ namespace ETD.Grid
                         pathExists = pathfinder.HasPath(_entryPoints[e], _exitPoints[x]);
                     }
                 }
+            }
+            else if (!_pathfinderMissingLogged)
+            {
+                // BUG HISTORY: a duplicate ETD.Core.IAStarPathfinder declaration in
+                // the ETD.Pathfinding assembly once made this lookup silently miss
+                // (two distinct Types with the same name), which disabled path-block
+                // validation entirely — turrets could wall off the map. If this
+                // error ever appears, the pathfinder is registering under a
+                // different type than this assembly resolves.
+                _pathfinderMissingLogged = true;
+                Debug.LogError("[GridSystem] WouldBlockPath: no IAStarPathfinder registered — path-block validation is NOT running, placements are unrestricted!");
             }
 
             // Restore

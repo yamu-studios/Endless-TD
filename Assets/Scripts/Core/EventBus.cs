@@ -12,6 +12,11 @@ namespace ETD.Core
     {
         private static readonly Dictionary<Type, Delegate> _handlers = new();
 
+        // GetInvocationList() allocates a fresh Delegate[] on every call, and
+        // Publish runs for every damage tick/spawn/kill in late waves. Cache the
+        // list per event type and invalidate only when the subscriber set changes.
+        private static readonly Dictionary<Type, Delegate[]> _invocationListCache = new();
+
         public static void Subscribe<T>(Action<T> handler) where T : struct
         {
             if (handler == null)
@@ -29,6 +34,8 @@ namespace ETD.Core
             {
                 _handlers[type] = handler;
             }
+
+            _invocationListCache.Remove(type);
         }
 
         public static void Unsubscribe<T>(Action<T> handler) where T : struct
@@ -41,6 +48,8 @@ namespace ETD.Core
                     _handlers.Remove(type);
                 else
                     _handlers[type] = result;
+
+                _invocationListCache.Remove(type);
             }
         }
 
@@ -53,7 +62,11 @@ namespace ETD.Core
             // Invoke each subscriber separately. A stale/destroyed run-scene listener
             // from Retry must never prevent later listeners such as GameOverUI from
             // receiving the event.
-            var calls = handler.GetInvocationList();
+            if (!_invocationListCache.TryGetValue(type, out var calls))
+            {
+                calls = handler.GetInvocationList();
+                _invocationListCache[type] = calls;
+            }
             for (int i = 0; i < calls.Length; i++)
             {
                 var del = calls[i];
@@ -115,6 +128,7 @@ namespace ETD.Core
         public static void Clear()
         {
             _handlers.Clear();
+            _invocationListCache.Clear();
         }
     }
 }

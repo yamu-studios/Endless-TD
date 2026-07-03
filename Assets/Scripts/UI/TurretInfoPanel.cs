@@ -38,6 +38,9 @@ namespace ETD.UI
         [SerializeField] private Button _sellButton;
         [SerializeField] private TMP_Text _sellValueText;
 
+        [Tooltip("Assign your own close button here to match the game's UI style. If left empty, a simple runtime 'X' button is created instead.")]
+        [SerializeField] private Button _closeButton;
+
         [Header("Evolution")]
         [SerializeField] private GameObject _evolvePanel;
         [SerializeField] private Button _evolvePathAButton;
@@ -57,6 +60,11 @@ namespace ETD.UI
             ResolveServices();
 
             EnsureDraggable();
+
+            if (_closeButton != null)
+                _closeButton.onClick.AddListener(ClosePanel);
+            else
+                PanelCloseButton.Ensure(_panel, ClosePanel);
 
             if (_panel != null) _panel.SetActive(false);
             if (_evolvePanel != null) _evolvePanel.SetActive(false);
@@ -125,6 +133,16 @@ namespace ETD.UI
             _panel.SetActive(true);
             RefreshInfo();
         }
+        /// <summary>
+        /// Close button handler. Publishes the same deselect event the input
+        /// handler uses, so the range indicator and every other selection
+        /// listener stays consistent (OnTurretDeselected then hides the panel).
+        /// </summary>
+        private void ClosePanel()
+        {
+            EventBus.Publish(new TurretDeselectedEvent());
+        }
+
         private void OnTurretDeselected(TurretDeselectedEvent evt)
         {
             // If evolve panel was open, restore game state before hiding

@@ -45,6 +45,10 @@ namespace ETD.UI
         [SerializeField] private Image _iconImage;
         [SerializeField] private Image _healthFill;
 
+        [Header("Close")]
+        [Tooltip("Assign your own close button here to match the game's UI style. If left empty, a simple runtime 'X' button is created instead.")]
+        [SerializeField] private Button _closeButton;
+
         private EnemyController _selected;
         private int _selectedRuntimeId = -1;
         private float _nextRefreshTime;
@@ -58,6 +62,17 @@ namespace ETD.UI
 
             SetText(_titleText, LocalizationManager.Get("ui_enemy_info_title", "Enemy Info"));
             EnsureDraggable();
+
+            if (_closeButton != null)
+            {
+                _closeButton.onClick.RemoveListener(Hide);
+                _closeButton.onClick.AddListener(Hide);
+            }
+            else
+            {
+                PanelCloseButton.Ensure(_panel, Hide);
+            }
+
             Hide();
         }
 
@@ -149,9 +164,13 @@ namespace ETD.UI
             // v8: these text fields now show only the value. The row/icon already communicates the stat.
             SetText(_armorText, _selected.Armor.ToString("0.#"));
             SetText(_speedText, _selected.MoveSpeed.ToString("0.##"));
+            // Show the wave/tier-scaled rewards this kill will actually pay,
+            // not the base asset values.
             SetText(_rewardText, string.Format("{0}: {1}  {2}: {3:0}",
-                LocalizationManager.Get("ui_gold", "Gold"), data.GoldReward,
-                LocalizationManager.Get("ui_xp", "XP"), data.XPReward));
+                LocalizationManager.Get("ui_gold", "Gold"),
+                EnemyController.ComputeGoldReward(data, _selected.Tier, _selected.WaveNumber),
+                LocalizationManager.Get("ui_xp", "XP"),
+                EnemyController.ComputeXPReward(data, _selected.WaveNumber)));
 
             float hp = Mathf.Max(0f, _selected.CurrentHealth);
             float maxHp = Mathf.Max(1f, _selected.MaxHealth);

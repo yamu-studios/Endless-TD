@@ -14,28 +14,31 @@ namespace ETD.Enemies
     {
         [Header("Hit Flash (projectile impact)")]
         [SerializeField] private float _hitFlashDuration = 0.08f;
-        [SerializeField] private Color _hitFlashColor = Color.white;
 
         [Header("Laser Pulse Flash (periodic while laser hits)")]
         [SerializeField] private float _laserPulseInterval = 0.25f;
         [SerializeField] private float _laserPulseDuration = 0.06f;
-        [SerializeField] private Color _laserPulseColor = new Color(0.8f, 1f, 1f); // slight cyan tint
 
         [Header("Death VFX")]
         [SerializeField] private GameObject _deathVFX;
 
         private Renderer[] _renderers;
         private Material[][] _originalMaterials;
+        private Material[][] _flashMaterials;
         [SerializeField]private Material _flashMat;
         [SerializeField]private Material _revealedMat;
         [SerializeField]private Renderer _ghostRenderer;
         private bool _isFlashing;
         private Coroutine _laserPulseCoroutine;
+        private WaitForSeconds _hitFlashWait;
+        private WaitForSeconds _laserPulseFlashWait;
+        private WaitForSeconds _laserPulseIntervalWait;
 
         private void Awake()
         {
             _renderers = GetComponentsInChildren<Renderer>();
             _originalMaterials = new Material[_renderers.Length][];
+            _flashMaterials = new Material[_renderers.Length][];
 
             // FIX (profiler-confirmed, wave-55+ capture): Renderer.materials (the
             // instance property) clones every material on every renderer the first
@@ -46,12 +49,33 @@ namespace ETD.Enemies
             // no child sample to attribute it to.
             //
             // This array is only ever used to RESTORE appearance after a flash
-            // (assigned wholesale back via "_renderers[i].materials = _originalMaterials[i]"
-            // in EndFlash) — it is never mutated in place. sharedMaterials returns the
+            // (assigned wholesale back via sharedMaterials in RestoreMaterials)
+            // — it is never mutated in place. sharedMaterials returns the
             // actual shared asset references with zero cloning, which is exactly what
             // a restore-only snapshot needs.
+            //
+            // FIX (native-memory leak): the flash arrays are prebuilt here so the
+            // per-hit flash never touches Renderer.materials again. The old
+            // FlashCoroutine read renderer.materials on EVERY flash, which clones
+            // every material into "(Instance)" copies, then immediately orphaned
+            // those copies by overwriting the slots with the flash material.
+            // Orphaned Materials are native objects that survive until scene
+            // unload, so every projectile hit flash leaked one Material per
+            // renderer slot for the entire run.
             for (int i = 0; i < _renderers.Length; i++)
-                _originalMaterials[i] = _renderers[i].sharedMaterials;
+            {
+                Material[] shared = _renderers[i].sharedMaterials;
+                _originalMaterials[i] = shared;
+
+                var flash = new Material[shared.Length];
+                for (int m = 0; m < flash.Length; m++)
+                    flash[m] = _flashMat;
+                _flashMaterials[i] = flash;
+            }
+
+            _hitFlashWait = new WaitForSeconds(_hitFlashDuration);
+            _laserPulseFlashWait = new WaitForSeconds(_laserPulseDuration);
+            _laserPulseIntervalWait = new WaitForSeconds(Mathf.Max(0.01f, _laserPulseInterval - _laserPulseDuration));
         }
 
         // =================================================================
@@ -61,7 +85,7 @@ namespace ETD.Enemies
         public void FlashOnHit()
         {
             if (_isFlashing || !gameObject.activeInHierarchy) return;
-            StartCoroutine(FlashCoroutine(_hitFlashColor, _hitFlashDuration));
+            StartCoroutine(FlashCoroutine(_hitFlashWait));
         }
 
         // =================================================================
@@ -71,7 +95,7 @@ namespace ETD.Enemies
 
         public void RevealGhost()
         {
-            _ghostRenderer.material = _revealedMat;
+            _ghostRenderer.sharedMaterial = _revealedMat;
         }
         public void StartLaserPulse()
         {
@@ -95,37 +119,37 @@ namespace ETD.Enemies
             while (true)
             {
                 // Wait between pulses
-                yield return new WaitForSeconds(_laserPulseInterval - _laserPulseDuration);
+                yield return _laserPulseIntervalWait;
 
                 // Flash
                 if (!_isFlashing)
-                    yield return FlashCoroutine(_laserPulseColor, _laserPulseDuration);
+                    yield return FlashCoroutine(_laserPulseFlashWait);
                 else
-                    yield return new WaitForSeconds(_laserPulseDuration);
+                    yield return _laserPulseFlashWait;
             }
         }
 
         // =================================================================
         // SHARED FLASH COROUTINE
+        // The previous version read renderer.materials here (clones + orphans
+        // one Material per slot per flash — a native-memory leak on every hit)
+        // and allocated two arrays plus a WaitForSeconds per flash. Swapping
+        // prebuilt shared-asset arrays via sharedMaterials renders identically
+        // (the flash always replaced every slot with _flashMat regardless of
+        // the color parameter) with zero cloning and zero per-flash allocation.
         // =================================================================
 
-        private IEnumerator FlashCoroutine(Color flashColor, float duration)
+        private IEnumerator FlashCoroutine(WaitForSeconds wait)
         {
             _isFlashing = true;
 
             for (int i = 0; i < _renderers.Length; i++)
             {
                 if (_renderers[i] == null) continue;
-                var mats = _renderers[i].materials;
-                for (int m = 0; m < mats.Length; m++)
-                {
-                    mats[m] = _flashMat;
-                   
-                }
-                _renderers[i].materials = mats;
+                _renderers[i].sharedMaterials = _flashMaterials[i];
             }
 
-            yield return new WaitForSeconds(duration);
+            yield return wait;
 
             RestoreMaterials();
             _isFlashing = false;
@@ -136,7 +160,7 @@ namespace ETD.Enemies
             for (int i = 0; i < _renderers.Length; i++)
             {
                 if (_renderers[i] == null || _originalMaterials[i] == null) continue;
-                _renderers[i].materials = _originalMaterials[i];
+                _renderers[i].sharedMaterials = _originalMaterials[i];
             }
         }
 

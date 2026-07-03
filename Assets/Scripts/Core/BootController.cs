@@ -28,8 +28,10 @@ namespace ETD.Core
                 cam.depth = -10;
             }
 
-            // Initialize save system
-            SaveSystem.Load();
+            // Initialize save system and apply saved video settings immediately.
+            // Without this, a fresh launch runs at the platform-default quality
+            // tier (High) until the settings window is opened for the first time.
+            VideoSettingsApplier.Apply(SaveSystem.Load());
 
             // Ensure GameManager exists
             if (GameManager.Instance == null)
