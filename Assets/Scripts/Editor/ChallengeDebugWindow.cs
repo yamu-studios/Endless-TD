@@ -109,7 +109,8 @@ namespace ETD.EditorTools
                         EventBus.Publish(new TurretPlacedEvent
                         {
                             TurretId = i,
-                            GridPos = new Vector2Int(i % 10, i / 10)
+                            GridPos = new Vector2Int(i % 10, i / 10),
+                            TurretType = -1 // debug spam must not feed ACH_STRATEGIC_MIND
                         });
                     }
                 }

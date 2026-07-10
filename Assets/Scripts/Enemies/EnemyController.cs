@@ -525,13 +525,11 @@ namespace ETD.Enemies
 
             if (Data.Type == EnemyType.Splitter && !_hasSplit)
             {
+                // Spawn the children, then fall through to Die() below — Die() publishes
+                // the one real EnemyKilledEvent (gold/XP). The old code also published a
+                // bare EnemyKilledEvent here AND restored health that Die() immediately
+                // discarded, so every splitter death was counted twice.
                 _hasSplit = true;
-                CurrentHealth = MaxHealth * 0.4f;
-                EventBus.Publish(new EnemyKilledEvent
-                {
-                    EnemyId = InstanceId,
-                    Position = transform.position
-                });
 
                 for (int i = 0; i < _splitCount; i++)
                 {

@@ -130,7 +130,8 @@ namespace ETD.Turrets
                 EventBus.Publish(new TurretPlacedEvent
                 {
                     TurretId = controller.InstanceId,
-                    GridPos = gridPos
+                    GridPos = gridPos,
+                    TurretType = controller.Data != null ? (int)controller.Data.Type : -1
                 });
             }
             else if (!_activeTurrets.Contains(controller))

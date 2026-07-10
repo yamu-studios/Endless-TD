@@ -41,6 +41,10 @@ namespace ETD.Core
         private int _totalChallenges;
 
         private int _runTurretsBuilt;
+        // Strategic Mind: bitmask of distinct turret types placed this run.
+        // 7 types (Basic..Radar = 0..6) -> full mask 0x7F.
+        private int _runTurretTypesMask;
+        private const int AllTurretTypesMask = (1 << 7) - 1;
         private int _runUpgrades;
         private bool _hasBurnThisRun;
         private bool _hasFrostThisRun;
@@ -315,6 +319,15 @@ namespace ETD.Core
 
             if (_totalTurretsBuilt >= 100)
                 Unlock("ACH_100_TURRETS_TOTAL");
+
+            // Strategic Mind: place every turret type (all 7) in a single run.
+            // TurretType < 0 means the publisher couldn't resolve a type (debug events).
+            if (evt.TurretType >= 0 && evt.TurretType < 7)
+            {
+                _runTurretTypesMask |= 1 << evt.TurretType;
+                if (_runTurretTypesMask == AllTurretTypesMask)
+                    Unlock("ACH_STRATEGIC_MIND");
+            }
         }
 
         private void OnTurretUpgraded(TurretUpgradedEvent evt)
@@ -495,6 +508,7 @@ namespace ETD.Core
         private void ResetRunCounters()
         {
             _runTurretsBuilt = 0;
+            _runTurretTypesMask = 0;
             _runUpgrades = 0;
             _hasBurnThisRun = false;
             _hasFrostThisRun = false;

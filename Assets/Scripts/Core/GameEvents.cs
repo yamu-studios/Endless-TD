@@ -82,7 +82,7 @@ namespace ETD.Core
     }
 
     // === TURRETS ===
-    public struct TurretPlacedEvent { public int TurretId; public Vector2Int GridPos; }
+    public struct TurretPlacedEvent { public int TurretId; public Vector2Int GridPos; public int TurretType; }
     public struct TurretSoldEvent { public int TurretId; public int RefundAmount; }
     public struct TurretUpgradedEvent { public int TurretId; public int NewLevel; }
     public struct TurretEvolvedEvent { public int TurretId; public int EvolutionPath; }
