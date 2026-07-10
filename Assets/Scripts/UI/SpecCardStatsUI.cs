@@ -11,6 +11,7 @@ using ETD.Core;
 using ETD.Data;
 using ETD.Gameplay;
 using ETD.Waves;
+using ETD.Traits;
 
 namespace ETD.UI
 {
@@ -42,7 +43,18 @@ namespace ETD.UI
         [SerializeField] private Color _specialColor = new Color(1f, 0.85f, 0.2f);
         [SerializeField] private Color _labelColor = new Color(0.8f, 0.8f, 0.8f);
 
+        [Tooltip("Distinct color for trait rows so they stand out from spec-card stats.")]
+        [SerializeField] private Color _traitColor = new Color(0.62f, 0.71f, 1f);
+
+        [Header("Trait Section")]
+        [Tooltip("If true, active traits (including run-dynamic ones like damage-per-gold-spent) are listed with their CURRENT effective value.")]
+        [SerializeField] private bool _showTraits = true;
+
+        [Tooltip("Seconds between live refreshes while the panel is open, so dynamic trait values update. 0 = only refresh on open.")]
+        [SerializeField] private float _liveRefreshInterval = 0.75f;
+
         private bool _isOpen;
+        private float _nextLiveRefreshTime;
 
         private void Awake()
         {
@@ -59,6 +71,14 @@ namespace ETD.UI
         {
             if (KeybindingManager.GetKeyDown(KeybindAction.ToggleSpecCardStats))
                 Toggle();
+
+            // Live-refresh while open so run-dynamic traits (damage per gold spent,
+            // per owned turret, per wave) show their current effective value.
+            if (_isOpen && _liveRefreshInterval > 0f && Time.unscaledTime >= _nextLiveRefreshTime)
+            {
+                _nextLiveRefreshTime = Time.unscaledTime + _liveRefreshInterval;
+                Refresh();
+            }
         }
 
         private void EnsureDraggable()
@@ -82,6 +102,7 @@ namespace ETD.UI
         public void Open()
         {
             _isOpen = true;
+            _nextLiveRefreshTime = Time.unscaledTime + _liveRefreshInterval;
             if (_panel != null) _panel.SetActive(true);
             Refresh();
         }
@@ -115,6 +136,12 @@ namespace ETD.UI
             if (_cardCountText != null) _cardCountText.text = $"{LocalizationManager.Get("speccardstat_cards_collected", "Cards Collected")}: {runData.SpecCardsChosen}";
 
             float Get(SpecCardEffectType t) => runData.GetSpecBonus(t);
+
+            // =============================================================
+            // SECTION: TRAITS (shown first; run-dynamic values are live)
+            // =============================================================
+            if (_showTraits)
+                AddTraitRows(runData, currentWave);
 
             // =============================================================
             // SECTION: OFFENSE
@@ -239,6 +266,93 @@ namespace ETD.UI
             if (txt != null) txt.text = title;
         }
 
+        // =================================================================
+        // TRAITS — active traits with their CURRENT effective value.
+        // Dynamic traits (per gold spent / per owned turret / per wave) are
+        // computed against live run state, matching RunStatModifiers, so the
+        // panel reflects how strong the trait is *right now*.
+        // =================================================================
+
+        private void AddTraitRows(RunData runData, int wave)
+        {
+            var tm = TraitManager.Instance;
+            if (tm == null) return;
+
+            var traits = tm.ActiveTraits;
+            if (traits == null || traits.Count == 0) return;
+
+            AddSection(LocalizationManager.Get("speccardstat_section_traits", "TRAITS"));
+
+            for (int i = 0; i < traits.Count; i++)
+            {
+                TraitData trait = traits[i];
+                if (trait == null) continue;
+
+                string label = SOLocalization.GetName(
+                    "trait_" + trait.LocalizationKey, trait.DisplayName);
+                string valueText = FormatTraitValue(trait, runData, wave);
+
+                var go = Instantiate(_rowPrefab, _container);
+                var row = go.GetComponent<SpecCardStatRow>();
+                if (row == null) row = go.AddComponent<SpecCardStatRow>();
+                // Both the trait NAME and its value use the trait color so trait
+                // rows are clearly distinct from spec-card stat rows.
+                row.Setup(label, valueText, _traitColor, _traitColor);
+            }
+        }
+
+        private static float Norm(float value) => value > 1f ? value * 0.01f : value;
+
+        private string FormatTraitValue(TraitData trait, RunData runData, int wave)
+        {
+            // Effective value (base * permanent shop upgrades) — matches what
+            // RunStatModifiers actually applies, so upgraded traits are visible here.
+            float effectValue = BalanceDescriptionFormatter.GetDisplayEffectValue(trait);
+
+            switch (trait.EffectType)
+            {
+                // Damage per 100 gold spent — grows as the player spends.
+                case TraitEffectType.DamagePerGoldSpent:
+                {
+                    float cur = Norm(effectValue) * (runData.TotalGoldSpent / 100f);
+                    return $"+{SmartPercent(cur * 100f)}%";
+                }
+
+                // Damage per owned turret — grows as turrets are placed.
+                case TraitEffectType.DamagePerOwnedTurret:
+                {
+                    float cur = Norm(effectValue) * runData.TurretsPlaced;
+                    return $"+{SmartPercent(cur * 100f)}%";
+                }
+
+                // All stats per wave — exponential, matches GetWaveScalingMultiplier.
+                case TraitEffectType.AllStatsPerWave:
+                {
+                    float cur = Mathf.Pow(1f + Norm(effectValue), Mathf.Max(0, wave)) - 1f;
+                    return $"+{SmartPercent(cur * 100f)}%";
+                }
+
+                // Flat counts.
+                case TraitEffectType.ChainTargetBonus:
+                    return $"+{Mathf.RoundToInt(effectValue)}";
+
+                // Everything else: static percent effect.
+                default:
+                    return $"+{SmartPercent(Norm(effectValue) * 100f)}%";
+            }
+        }
+
+        // Adaptive precision so tiny-but-nonzero trait values never show as "0".
+        // >=1 keeps 3 decimals so upgrade steps (1% -> 1.15% -> 1.75%) stay visible.
+        private static string SmartPercent(float p)
+        {
+            float a = Mathf.Abs(p);
+            if (a < 1e-7f) return "0";
+            if (a >= 1f) return p.ToString("0.###");
+            if (a >= 0.01f) return p.ToString("0.####");
+            return p.ToString("0.######");
+        }
+
         private void AddRow(string locKey, string fallbackLabel, float value,
             StatFormat format, Color valueColor)
         {
@@ -263,10 +377,14 @@ namespace ETD.UI
             row.Setup(label, "Active", _labelColor, _specialColor);
         }
 
+        // Spec bonuses are stored normalized as fractions (0.1 = 10%), so a percent
+        // row converts with x100. Sums here can legitimately exceed 1.0 (e.g. +250%
+        // damage), so we must NOT apply the ">1 means already-a-percent" normalization
+        // used for single raw data values in BalanceDescriptionFormatter.
         private static string FormatValue(float v, StatFormat format) => format switch
         {
-            StatFormat.Percent => $"+{v:F1}%",
-            StatFormat.PercentNegative => $"-{v:F1}%",
+            StatFormat.Percent => $"+{v * 100f:0.##}%",
+            StatFormat.PercentNegative => $"-{v * 100f:0.##}%",
             StatFormat.FlatInt => $"+{Mathf.RoundToInt(v)}",
             _ => $"+{v:F2}"
         };

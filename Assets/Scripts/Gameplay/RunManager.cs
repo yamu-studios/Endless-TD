@@ -427,6 +427,28 @@ namespace ETD.Gameplay
             if (!unlocked)
                 return false;
 
+            // Crit-chance cards provide no value once crit is already at the 100%
+            // runtime cap (RunStatModifiers.GetCritChance clamps to 1). Filter both
+            // variants from offers dynamically rather than deleting them from the DB.
+            if (card.EffectType == SpecCardEffectType.CritChance ||
+                card.EffectType == SpecCardEffectType.CritChanceStrong)
+            {
+                if (_statModifiers != null && _statModifiers.GetCritChance() >= 0.999f)
+                    return false;
+            }
+
+            // Covenant offer biasing: while a Keystone Covenant is active, elemental
+            // cards of the OTHER two elements stop appearing. Matching-element and
+            // generic cards (damage, economy, utility, survival) remain, so builds
+            // narrow without losing safety picks.
+            var covenant = GetActiveCovenant();
+            if (covenant.HasValue)
+            {
+                var cardElement = GetCardElement(card.EffectType);
+                if (cardElement.HasValue && cardElement.Value != covenant.Value)
+                    return false;
+            }
+
             int currentStacks = 0;
             if (_runData != null && _runData.SpecStacks != null)
                 _runData.SpecStacks.TryGetValue(card.EffectType, out currentStacks);
@@ -438,6 +460,48 @@ namespace ETD.Gameplay
                 return false;
 
             return true;
+        }
+
+        /// <summary>The run's active Keystone Covenant effect type, or null.</summary>
+        private TraitEffectType? GetActiveCovenant()
+        {
+            if (_runData?.ActiveTraitIds == null || _database == null) return null;
+
+            for (int i = 0; i < _runData.ActiveTraitIds.Count; i++)
+            {
+                var trait = _database.GetTrait(_runData.ActiveTraitIds[i]);
+                if (trait != null && trait.IsKeystone)
+                    return trait.EffectType;
+            }
+            return null;
+        }
+
+        /// <summary>Which covenant a spec card belongs to, or null for generic cards.</summary>
+        private static TraitEffectType? GetCardElement(SpecCardEffectType type)
+        {
+            switch (type)
+            {
+                case SpecCardEffectType.BurnDamage:
+                case SpecCardEffectType.BurnDamageStrong:
+                case SpecCardEffectType.DamageVsBurning:
+                case SpecCardEffectType.BurnSpreadOnDeath:
+                    return TraitEffectType.FlameCovenant;
+
+                case SpecCardEffectType.SlowDuration:
+                case SpecCardEffectType.SlowStrength:
+                case SpecCardEffectType.DamageVsSlowedFrozen:
+                case SpecCardEffectType.FreezeAmplifier:
+                    return TraitEffectType.FrostCovenant;
+
+                case SpecCardEffectType.ChainDamage:
+                case SpecCardEffectType.ChainRange:
+                case SpecCardEffectType.ChainTargetBonus:
+                case SpecCardEffectType.ShockChance:
+                    return TraitEffectType.StormCovenant;
+
+                default:
+                    return null; // generic — always offerable
+            }
         }
 
         private int PickWeightedCardIndex(List<SpecCardData> pool, System.Random rng)
@@ -613,6 +677,7 @@ namespace ETD.Gameplay
 
             _runData.AddSpecBonus(card.EffectType, card.EffectValue);
             _runData.SpecCardsChosen++;
+            ResetPaidRerolls(); // offer consumed - next level-up starts at the cheapest paid reroll
 
             // Special: heal
             if (card.EffectType == SpecCardEffectType.HealHealth)
@@ -726,8 +791,62 @@ namespace ETD.Gameplay
         public void RerollSpecCards()
         {
             PresentSpecCards();
-            // Note: do NOT publish LevelUpEvent again  SpecCardSelectionUI
-            // calls ShowCards() directly after calling this.
         }
+
+        // =================================================================
+        // PAID CRYSTAL REROLLS (Fix 11)
+        // Escalating crystal cost per offer, hard-capped per offer so build RNG
+        // stays meaningful. Paid rerolls go through PresentSpecCards, so they
+        // count as offers for pity (deliberate: prevents pity exploitation).
+        // =================================================================
+
+        [Header("Paid Crystal Rerolls")]
+        [Tooltip("Crystal cost of the 1st/2nd/3rd paid reroll within one level-up offer. " +
+                 "Array length = max paid rerolls per offer.")]
+        [SerializeField] private int[] _crystalRerollCosts = { 10, 25, 60 };
+
+        private int _paidRerollsThisOffer;
+
+        public int MaxPaidRerollsPerOffer => _crystalRerollCosts != null ? _crystalRerollCosts.Length : 0;
+        public int PaidRerollsUsedThisOffer => _paidRerollsThisOffer;
+
+        /// <summary>Cost of the next paid reroll, or -1 when the per-offer cap is reached.</summary>
+        public int GetNextPaidRerollCost()
+        {
+            if (_crystalRerollCosts == null || _paidRerollsThisOffer >= _crystalRerollCosts.Length)
+                return -1;
+            return Mathf.Max(0, _crystalRerollCosts[_paidRerollsThisOffer]);
+        }
+
+        /// <summary>Called when a card is chosen — the offer is consumed, costs reset.</summary>
+        public void ResetPaidRerolls() => _paidRerollsThisOffer = 0;
+
+        /// <summary>
+        /// Spends persistent meta currency (crystals) for a fresh offer. Returns false
+        /// when capped or unaffordable. UI should disable its button in those cases.
+        /// </summary>
+        public bool TryPaidCrystalReroll()
+        {
+            int cost = GetNextPaidRerollCost();
+            if (cost < 0) return false;
+
+            var save = SaveSystem.Load();
+            if (save.MetaCurrency < cost) return false;
+
+            save.MetaCurrency -= cost;
+            SaveSystem.Save(save);
+            EventBus.Publish(new MetaCurrencyChangedEvent
+            {
+                Current = save.MetaCurrency,
+                Delta = -cost
+            });
+
+            _paidRerollsThisOffer++;
+            PresentSpecCards();
+            return true;
+        }
+
+        // Note (rerolls): do NOT publish LevelUpEvent again after a reroll;
+        // SpecCardSelectionUI calls ShowCards() directly after calling it.
     }
 }

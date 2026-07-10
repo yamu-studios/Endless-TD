@@ -211,7 +211,7 @@ namespace ETD.Hub
                     Description  = trait.Description,//\n\n{trait.Description}
                     Icon         = trait.Icon,
                     CurrentLevel = level,
-                    MaxLevel     = 5,
+                    MaxLevel     = 10,
                     Price        = price,
                     Category     = ShopCategory.Traits,
                     DataId       = trait.Id,
@@ -399,7 +399,7 @@ namespace ETD.Hub
 
             var save  = SaveSystem.Load();
             int level = GetTraitSaveLevel(save, item.DataId);
-            if (level >= 5) return false;
+            if (level >= item.MaxLevel) return false; // cap follows the shop item (10), no separate hardcoded limit
 
             if (!_metaManager.SpendMetaCurrency(item.Price)) return false;
 

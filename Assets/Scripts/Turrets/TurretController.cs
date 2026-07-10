@@ -61,6 +61,37 @@ namespace ETD.Turrets
         [Tooltip("Caps multiplicative damage growth per turret upgrade level. 0.25 = at most +25% damage per turret level.")]
         [SerializeField] private float _maxMultiplicativeDamageGrowthPerLevel = 0.25f;
 
+        [Header("Laser Ramp (base lasers)")]
+        [Tooltip("All lasers gain this much bonus damage per second while staying on the same target " +
+                 "(0.08 = +8%/s, COMPOUNDING: the multiplier grows on itself so the ramp accelerates). " +
+                 "Resets when the target changes. Gives Laser a late-game anti-tank identity. " +
+                 "The Path-B stacking evolution replaces this with its own stronger ramp.")]
+        [SerializeField] private float _innateLaserRampPerSecond = 0.08f;
+
+        [Tooltip("Cap for the innate ramp bonus. 1 = at most +100% damage from sustained fire.")]
+        [SerializeField] private float _innateLaserRampCap = 1.0f;
+
+        [Tooltip("Stacker Laser evolution only: while the ramp is at full stacks, the beam also deals " +
+                 "this fraction of the target's MISSING HP per second as execute damage (0.03 = 3%/s). " +
+                 "Cannot touch full-HP enemies, accelerates as the target gets lower — the reward for " +
+                 "holding the beam on one tank. Set 0 to disable.")]
+        [SerializeField, Range(0f, 0.2f)] private float _laserExecuteMissingHPPercent = 0.03f;
+
+        [Header("Identity Scaling")]
+        [Tooltip("Turret IDENTITY effects grow with upgrade level: Frost slow strength/duration " +
+                 "and the Inferno flat-burn floor gain this fraction per level (0.01 = +1%/level). " +
+                 "Capped by the value below. Damage/speed/range already scale separately.")]
+        [SerializeField] private float _identityScalingPerLevel = 0.01f;
+
+        [Tooltip("Maximum total identity bonus from levels. 0.5 = at most +50% (reached at level 50).")]
+        [SerializeField] private float _identityScalingCap = 0.5f;
+
+        [Header("Burn Scaling")]
+        [Tooltip("Burn total damage equals this fraction of the applying hit, spread over the burn " +
+                 "duration (0.25 = the burn deals 25% of the hit's damage over its duration). The flat " +
+                 "BurnDPS from turret data acts as an early-game floor. Keeps Inferno relevant late-game.")]
+        [SerializeField, Range(0f, 1f)] private float _burnHitPercent = 0.25f;
+
         [Header("Upgrade Visual Scale")]
         [Tooltip("If enabled, the turret model starts at Min Scale Multiplier and grows only during the first Scale Steps upgrades.")]
         [SerializeField] private bool _scaleTurretOnUpgrade = true;
@@ -169,6 +200,19 @@ namespace ETD.Turrets
         public DynamicTileData DynamicTile { get; private set; }
         public int EvolutionPath { get; private set; } = -1;
 
+        /// <summary>Current laser ramp damage multiplier (1 = no ramp). UI-facing.</summary>
+        public float LaserRampMultiplier => _laserStackMultiplier;
+
+        /// <summary>Maximum laser ramp multiplier for this turret's current form. UI-facing.</summary>
+        public float LaserRampCapMultiplier =>
+            _cachedIsStackingLaser && Data != null && Data.PathB != null
+                ? 1f + Data.PathB.StackingCap
+                : 1f + Mathf.Max(0f, _innateLaserRampCap);
+
+        /// <summary>True for any laser form that ramps (innate or Stacker evolution). UI-facing.</summary>
+        public bool HasLaserRamp => Data != null && Data.IsContinuousBeam &&
+            (_cachedIsStackingLaser || _innateLaserRampPerSecond > 0f);
+
         // Targeting
         private TargetingMode _targetingMode;
         private float _attackTimer;
@@ -204,6 +248,7 @@ namespace ETD.Turrets
 
         // Laser stacking / crit window
         private float _laserStackMultiplier = 1f;
+        private float _pendingExecuteHpDamage;
         private EnemyController _lastLaserTarget;
         private float _laserCritWindowTimer;
         private bool _laserCritActive;
@@ -306,8 +351,6 @@ namespace ETD.Turrets
         private float _nextAreaDamageTargetRefreshTime;
         private float _nextAreaSlowApplyTime;
         private float _nextAreaBurnApplyTime;
-        private float _nextStackingBurnApplyTime;
-        private EnemyController _lastStackingBurnTarget;
 
         private const float EvolvedAreaAnchorRequeryDistanceSqr = 0.36f; // 0.6 metres
 
@@ -490,8 +533,6 @@ namespace ETD.Turrets
             _nextAreaDamageTargetRefreshTime = 0f;
             _nextAreaSlowApplyTime = 0f;
             _nextAreaBurnApplyTime = 0f;
-            _nextStackingBurnApplyTime = 0f;
-            _lastStackingBurnTarget = null;
         }
 
         public void Initialize(TurretData data, Vector2Int gridPos,
@@ -976,18 +1017,43 @@ namespace ETD.Turrets
         {
             if (_enemyManager == null) return null;
 
-            Profiler.BeginSample("Turret.FindTarget.EnemyManager.GetFirstEnemyInRange");
+            Profiler.BeginSample("Turret.FindTarget.EnemyManager.GetBestEnemyInRange");
             Vector3 origin = _cachedTransform != null ? _cachedTransform.position : transform.position;
-            EnemyController target = _enemyManager.GetFirstEnemyInRange(
-                origin, Range, Data.CanTargetStealth);
+            // Combat turrets always target something; None only applies to Support/Radar,
+            // which never reach FindTarget. Fall back to First just in case.
+            TargetingMode mode = _targetingMode == TargetingMode.None ? TargetingMode.First : _targetingMode;
+            EnemyController target = _enemyManager.GetBestEnemyInRange(
+                origin, Range, Data.CanTargetStealth, mode);
             Profiler.EndSample();
             return target;
+        }
+
+        // =================================================================
+        // TARGETING MODE (runtime-selectable; persisted per turret)
+        // =================================================================
+
+        public TargetingMode CurrentTargetingMode => _targetingMode;
+
+        /// <summary>
+        /// Runtime setter used by the turret info UI and by save/restore. Combat turrets
+        /// always keep a real priority, so None is ignored. Clears the current target so
+        /// the new priority is applied on the next combat tick.
+        /// </summary>
+        public void SetTargetingMode(TargetingMode mode)
+        {
+            if (mode == TargetingMode.None) return;
+            if (_targetingMode == mode) return;
+
+            _targetingMode = mode;
+            _currentTarget = null;
+            _targetSearchTimer = 0f;
         }
 
         private bool IsTargetStillValid(EnemyController target)
         {
             if (target == null || target.IsDead || !target.gameObject.activeInHierarchy) return false;
             if (target.IsStealth && !target.IsRevealed && !Data.CanTargetStealth) return false;
+            if (!target.IsTargetable) return false;
 
             Vector3 origin = _cachedTransform != null ? _cachedTransform.position : transform.position;
             Vector3 targetPos = target.transform.position;
@@ -1012,6 +1078,7 @@ namespace ETD.Turrets
             _soundConfig?.StopLaserLoop();
             _muzzleVFX?.SetContinuous(false);
             _laserStackMultiplier = 1f;
+            _pendingExecuteHpDamage = 0f;
             _laserStateActive = false;
             _laserDamageAccumulator = 0f;
             _multiLaserTargetRefreshAccumulator = 0f;
@@ -1055,12 +1122,18 @@ namespace ETD.Turrets
             float statusValue = 0f;
             float statusDuration = 0f;
 
+            // Identity scaling: status effects grow with turret level so upgrading a
+            // Frost/Inferno turret improves what makes it special, not just raw stats.
+            float identityMult = 1f + Mathf.Min(
+                Mathf.Max(0f, _identityScalingCap),
+                Mathf.Max(0f, _identityScalingPerLevel) * Mathf.Max(0, Level - 1));
+
             switch (Data.Type)
             {
                 case TurretType.Frost:
                     status = StatusEffectType.Slow;
-                    statusValue = Data.SlowPercent;
-                    statusDuration = Data.SlowDuration;
+                    statusValue = Data.SlowPercent * identityMult;
+                    statusDuration = Data.SlowDuration * identityMult;
                     if (_statModifiers != null)
                     {
                         statusValue *= _statModifiers.GetSlowStrengthMultiplier();
@@ -1070,7 +1143,7 @@ namespace ETD.Turrets
 
                 case TurretType.Inferno:
                     status = StatusEffectType.Burn;
-                    statusValue = Data.BurnDPS;
+                    statusValue = Data.BurnDPS * identityMult;
                     statusDuration = Data.BurnDuration;
                     if (_statModifiers != null)
                     {
@@ -1091,6 +1164,35 @@ namespace ETD.Turrets
             _shotCounter++;
             float finalDamage = CalculateHitDamage(Damage, target);
             bool isCriticalHit = _lastDamageRollWasCritical;
+
+            // Late-game scaling for evolved non-lightning turrets: bonus damage equal
+            // to a fraction of the target's CURRENT HP per hit — the same scaling class
+            // that makes the Lightning chain evolution viable at wave 100+. Counts
+            // toward percent-HP damage tracking/unlocks.
+            if (_cachedEvolution != null && _cachedEvolution.HitCurrentHPPercent > 0f && !target.IsDead)
+            {
+                float pctDamage = target.CurrentHealth * _cachedEvolution.HitCurrentHPPercent;
+                finalDamage += pctDamage;
+                EventBus.Publish(new PercentHPDamageEvent { DamageAmount = pctDamage });
+            }
+
+            // Burn rework: flat data BurnDPS becomes irrelevant once hits reach
+            // thousands+, so burn now scales from the applying hit. statusValue is the
+            // DPS of ONE burn stack (_burnHitPercent of the hit spread over the
+            // duration); the flat DPS (with its bonuses, already in statusValue)
+            // remains as an early-game floor. Burns stack per hit (capped in
+            // EnemyModifierStack), so attack speed and burn investment scale total
+            // burn output. finalDamage includes crit, so crits apply stronger burns.
+            if (status == StatusEffectType.Burn && statusDuration > 0.01f)
+            {
+                float burnBonus = _statModifiers != null ? _statModifiers.GetBurnDamageMultiplier() : 1f;
+                // Catalytic Burn cards add to the burn-from-hit fraction.
+                float hitFraction = _burnHitPercent
+                    + (_statModifiers != null ? Mathf.Max(0f, _statModifiers.GetBurnFromHitBonus()) : 0f);
+                float hitScaledDps = (finalDamage * hitFraction / statusDuration) * burnBonus;
+                if (hitScaledDps > statusValue)
+                    statusValue = hitScaledDps;
+            }
 
             // Spawn visual projectile or use direct-hit fallback.
             // Projectile telemetry is aggregated once per rendered frame instead of being
@@ -1174,6 +1276,7 @@ namespace ETD.Turrets
 
                 ClearSecondaryLaserTargets();
                 _laserStackMultiplier = 1f;
+                _pendingExecuteHpDamage = 0f;
                 _lastLaserTarget = target;
                 _laserDamageAccumulator = 0f;
                 _multiLaserTargetRefreshAccumulator = 0f;
@@ -1236,7 +1339,17 @@ namespace ETD.Turrets
             bool publishLaserTelemetry = _laserPublishTimer >= _cachedLaserChallengeTelemetryInterval;
             float publishedDt = publishLaserTelemetry ? _laserPublishTimer : 0f;
             if (publishLaserTelemetry)
+            {
                 _laserPublishTimer = 0f;
+
+                // Execute damage accumulates per frame; report it toward percent-HP
+                // tracking on the same batched cadence as the laser challenge telemetry.
+                if (_pendingExecuteHpDamage > 0f)
+                {
+                    EventBus.Publish(new PercentHPDamageEvent { DamageAmount = _pendingExecuteHpDamage });
+                    _pendingExecuteHpDamage = 0f;
+                }
+            }
             Profiler.EndSample();
 
             if (publishLaserTelemetry)
@@ -1263,16 +1376,48 @@ namespace ETD.Turrets
                 }
             }
 
+            if (!_cachedIsStackingLaser && _innateLaserRampPerSecond > 0f)
+            {
+                // Non-lightning viability: ALL lasers now ramp on a sustained target
+                // (the Path-B evolution keeps its much stronger dedicated ramp below).
+                // COMPOUNDING growth: the ramp accelerates instead of crawling
+                // linearly, so sustained focus fire visibly snowballs. Resets on
+                // target change, so it rewards tanks/bosses without buffing swarm clear.
+                _laserStackMultiplier = Mathf.Min(
+                    _laserStackMultiplier * (1f + _innateLaserRampPerSecond * damageDt),
+                    1f + _innateLaserRampCap);
+                _beamRenderer?.SetStackMultiplier(_laserStackMultiplier);
+            }
+
             if (_cachedIsStackingLaser && Data.PathB != null)
             {
                 Profiler.BeginSample("Turret.AttackLaser.Stacking");
                 float stackingInterval = Mathf.Max(0.001f, Data.PathB.StackingInterval);
-                float stackIncrease = Data.PathB.StackingDPSPercent * damageDt / stackingInterval;
+                // Compounding like the innate ramp, at the evolution's stronger rate.
+                float rampRate = Data.PathB.StackingDPSPercent / stackingInterval;
+                float stackingCap = 1f + Data.PathB.StackingCap;
                 _laserStackMultiplier = Mathf.Min(
-                    _laserStackMultiplier + stackIncrease,
-                    1f + Data.PathB.StackingCap);
+                    _laserStackMultiplier * (1f + rampRate * damageDt),
+                    stackingCap);
 
                 _beamRenderer?.SetStackMultiplier(_laserStackMultiplier);
+
+                // Missing-HP execute: the payoff for reaching and holding full stacks.
+                // Pure damage (no armor), no per-frame damage number; the amount is
+                // batched into a PercentHPDamageEvent on the laser telemetry cadence.
+                if (_laserExecuteMissingHPPercent > 0f &&
+                    _laserStackMultiplier >= stackingCap * 0.999f && !target.IsDead)
+                {
+                    float missingHp = target.MaxHealth - target.CurrentHealth;
+                    if (missingHp > 0f)
+                    {
+                        float executeDamage = missingHp * _laserExecuteMissingHPPercent * damageDt;
+                        target.TakePureDamage(executeDamage, playHitVFX: false,
+                            showDamageNumber: false,
+                            sourceTurretType: (int)Data.Type, sourceTurretId: InstanceId);
+                        _pendingExecuteHpDamage += executeDamage;
+                    }
+                }
                 Profiler.EndSample();
             }
 
@@ -1526,6 +1671,20 @@ namespace ETD.Turrets
             float shockChance = _statModifiers.GetShockChance();
             if (shockChance > 0f && !target.IsDead && Random.value < shockChance)
                 target.ApplyStatus(StatusEffectType.Shock, 1f, 0.25f, (int)Data.Type, InstanceId);
+
+            // Ember Stacker (Inferno Path B): every hit applies one EXTRA burn stack
+            // and may push the enemy past the default burn-stack cap up to the
+            // evolution's MaxBurnStacks. statusValue is already the hit-scaled DPS
+            // of one stack, so an Ember Stacker hit burns twice as hard and deep
+            // focus fire can sustain a full high-cap stack set on a tank.
+            if (status == StatusEffectType.Burn && statusDuration > 0f && !target.IsDead &&
+                _cachedEvolution != null && _cachedEvolution.StackingBurn)
+            {
+                target.ApplyStatus(StatusEffectType.Burn,
+                    Mathf.Max(statusValue, _cachedEvolution.BurnStackDPS), statusDuration,
+                    (int)Data.Type, InstanceId,
+                    maxBurnStacks: _cachedEvolution.MaxBurnStacks);
+            }
 
             // Thermal Cascade: burn spreads while attacking.
             if (status == StatusEffectType.Burn && statusDuration > 0f)
@@ -1809,8 +1968,11 @@ namespace ETD.Turrets
             float now = Time.time;
 
             // Freeze is already naturally de-duplicated by the enemy modifier stack.
+            // Pass the evolution's per-enemy immunity so fast attack speed can't
+            // permanently freeze-lock (the enemy downgrades re-freezes to a slow).
             if (evo.FreezeOnHit && !target.HasStatus(StatusEffectType.Freeze))
-                target.ApplyStatus(StatusEffectType.Freeze, 1f, evo.FreezeDuration, (int)Data.Type, InstanceId);
+                target.ApplyStatus(StatusEffectType.Freeze, 1f, evo.FreezeDuration, (int)Data.Type, InstanceId,
+                    evo.FreezeImmunityTime);
 
             // Frost Path B: status renewal is independent from shot rate. Re-query
             // candidates only when the source target moves, changes or cache expires.
@@ -1870,19 +2032,8 @@ namespace ETD.Turrets
                 }
             }
 
-            // Inferno Path B's status container does not stack duplicate burns, so
-            // renewing it every shot only burns CPU. Refresh on target change or near
-            // the status renewal cadence instead.
-            if (evo.StackingBurn &&
-                (_lastStackingBurnTarget != target || now >= _nextStackingBurnApplyTime))
-            {
-                target.ApplyStatus(StatusEffectType.Burn, evo.BurnStackDPS, Data.BurnDuration, (int)Data.Type, InstanceId);
-                _lastStackingBurnTarget = target;
-                float renewal = Mathf.Min(
-                    Mathf.Max(0.03f, Data.BurnDuration * 0.5f),
-                    Mathf.Max(0.03f, _evolvedStatusReapplyInterval));
-                _nextStackingBurnApplyTime = now + renewal;
-            }
+            // Inferno Path B (Ember Stacker) applies its extra burn stack per hit in
+            // ApplyOnHitSpecials now that burns truly stack; no periodic renewal needed.
         }
 
         // =================================================================
@@ -2051,7 +2202,10 @@ namespace ETD.Turrets
                 return;
             }
 
-            float revealRange = Data.RevealRange > 0 ? Data.RevealRange : Range;
+            // Reveal range grows with upgrades — the only stat a radar level buys
+            // (Damage/AttackSpeed are meaningless for a turret that never attacks).
+            float revealRange = (Data.RevealRange > 0 ? Data.RevealRange : Range)
+                + Mathf.Max(0f, Data.RevealRangePerLevel) * (Level - 1);
 
             Profiler.BeginSample("Turret.Radar.GetStealthEnemiesInRange");
             _enemyManager.GetStealthEnemiesInRange(transform.position, revealRange, _enemiesInRange);

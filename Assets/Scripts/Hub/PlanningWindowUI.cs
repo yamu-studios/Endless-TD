@@ -154,6 +154,22 @@ namespace ETD.Hub
                 if (_selectedTraitIds.Contains(traitId)) return;
                 if (_metaManager != null && !_metaManager.IsTraitUnlocked(traitId)) return;
 
+                // Keystone Covenants are mutually exclusive: selecting one deselects
+                // any other selected covenant.
+                var newTrait = _database != null ? _database.GetTrait(traitId) : null;
+                if (newTrait != null && newTrait.IsKeystone)
+                {
+                    for (int i = _selectedTraitIds.Count - 1; i >= 0; i--)
+                    {
+                        var existing = _database.GetTrait(_selectedTraitIds[i]);
+                        if (existing != null && existing.IsKeystone)
+                        {
+                            FindTabItem(_selectedTraitIds[i])?.SetSelected(false);
+                            _selectedTraitIds.RemoveAt(i);
+                        }
+                    }
+                }
+
                 // Stack overflow: remove oldest if at capacity
                 while (_selectedTraitIds.Count >= _maxTraitSlots && _selectedTraitIds.Count > 0)
                 {

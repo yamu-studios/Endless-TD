@@ -40,6 +40,8 @@ namespace ETD.Core
         float GetLaserRefractionPercent();
         float GetExtraProjectileEveryNthShot();
         float GetMaxHPDecayPerSecond();
+        float GetBurnFromHitBonus();
+        float GetSupportExposure();
 
         void NotifyCriticalHit();
     }

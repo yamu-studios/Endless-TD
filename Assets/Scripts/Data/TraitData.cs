@@ -28,7 +28,29 @@ namespace ETD.Data
         [Header("Effect")]
         public TraitEffectType EffectType;
         public float EffectValue;
+
+        [Tooltip("Bonus per shop upgrade level as a FRACTION of the base effect " +
+                 "(0.15 = +15% of base per level). Leave 0 to use the default +15%/level. " +
+                 "Shop sells up to 10 levels, so the default maxes at +150% effect.")]
         public float UpgradedEffectValue;
+
+        /// <summary>
+        /// Effect value including permanent shop upgrades (SaveData.TraitUpgradeLevels).
+        /// Multiplicative-of-base so it works for both fraction-style values (0.01)
+        /// and whole-percent-style values (15) without knowing the unit.
+        /// </summary>
+        public float GetEffectiveValue(int upgradeLevel)
+        {
+            if (upgradeLevel <= 0) return EffectValue;
+            float perLevel = UpgradedEffectValue > 0f ? UpgradedEffectValue : 0.15f;
+            return EffectValue * (1f + perLevel * upgradeLevel);
+        }
+
+        /// <summary>Keystone Covenants are mutually exclusive — only one per run.</summary>
+        public bool IsKeystone =>
+            EffectType == TraitEffectType.FlameCovenant ||
+            EffectType == TraitEffectType.FrostCovenant ||
+            EffectType == TraitEffectType.StormCovenant;
 
         [Header("Timed Effects (Legendary traits)")]
         public float EffectDuration;
@@ -96,6 +118,13 @@ namespace ETD.Data
         AllStatsPerWave,
         MaxHPDecayPerSecond,
         DamagePerOwnedTurret,
-        GradeBonus
+        GradeBonus,
+
+        // Keystone Covenants (mutually exclusive; appended — do not reorder).
+        // EffectValue = the covenant's primary upside magnitude; downsides are
+        // fixed constants in RunStatModifiers.
+        FlameCovenant,   // + burn damage, - global direct damage
+        FrostCovenant,   // + damage vs slowed/frozen, - attack speed
+        StormCovenant    // +1 chain target & + chain damage, - global direct damage
     }
 }

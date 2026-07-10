@@ -104,9 +104,9 @@ namespace ETD.UI
             if (_runManager == null) return;
             var data = _runManager.RunData;
 
-            SetText(_goldText, data.Gold.ToString());
+            SetText(_goldText, ETD.Core.NumberFormat.Compact(data.Gold));
             SetText(_livesText, $"{data.Lives}");
-            SetText(_scoreText, data.Score.ToString());
+            SetText(_scoreText, ETD.Core.NumberFormat.Compact(data.Score));
             SetText(_waveText, $"{_waveManager?.CurrentWave ?? 0}");
             SetText(_levelText, $"Lv {data.Level}");
             UpdateXPBar(data.CurrentXP, data.XPToNextLevel);
@@ -133,12 +133,12 @@ namespace ETD.UI
 
         // === EVENT HANDLERS ===
 
-        private void OnGoldChanged(GoldChangedEvent evt) => SetText(_goldText, evt.Current.ToString());
+        private void OnGoldChanged(GoldChangedEvent evt) => SetText(_goldText, ETD.Core.NumberFormat.Compact(evt.Current));
         private void OnLivesChanged(LivesChangedEvent evt) => SetText(_livesText, $"{evt.Current}");
-        private void OnScoreChanged(ScoreChangedEvent evt) => SetText(_scoreText, evt.Current.ToString());
+        private void OnScoreChanged(ScoreChangedEvent evt) => SetText(_scoreText, ETD.Core.NumberFormat.Compact(evt.Current));
         private void OnWaveStarted(WaveStartedEvent evt) => SetText(_waveText, $"{evt.WaveNumber}");
         private void OnLevelUp(LevelUpEvent evt) => SetText(_levelText, $"Lv {evt.NewLevel}");
-        private void OnMetaCurrencyChanged(MetaCurrencyChangedEvent evt) => SetText(_metaCurrencyText, evt.Current.ToString());
+        private void OnMetaCurrencyChanged(MetaCurrencyChangedEvent evt) => SetText(_metaCurrencyText, ETD.Core.NumberFormat.Compact(evt.Current));
 
         private void OnXPChanged(XPGainedEvent evt)
         {

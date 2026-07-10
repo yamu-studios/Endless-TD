@@ -36,6 +36,13 @@ namespace ETD.Enemies
         [Tooltip("How often moving enemies are re-bucketed. 0.033 = about 30 Hz. Spawn/death still forces an immediate rebuild.")]
         [SerializeField] private float _spatialRebuildInterval = 0.033f;
 
+        [Header("Spawn Corridor Protection")]
+        [Tooltip("Enemies within this world-distance of their spawn/entry node cannot be " +
+                 "targeted by turret combat, so range upgrades can't delete enemies at the " +
+                 "offscreen spawn corridor. 0 disables. Radar reveal is unaffected. Keep " +
+                 "this small (only cover the spawn area).")]
+        [SerializeField] private float _spawnProtectionDistance = 2f;
+
         private readonly Dictionary<long, List<EnemyController>> _spatialBuckets = new(256);
         private readonly List<long> _usedSpatialKeys = new(256);
         private int _spatialRebuildFrame = -1;
@@ -79,6 +86,11 @@ namespace ETD.Enemies
             _grid = grid;
             _pathfinder = pathfinder;
             _nextInstanceId = 0;
+
+            // Publish the spawn-protection radius to the (static) enemy check.
+            float d = Mathf.Max(0f, _spawnProtectionDistance);
+            EnemyController.SpawnProtectionDistanceSqr = d * d;
+
             ServiceLocator.Register(this);
 
             EventBus.Subscribe<PathRecalculatedEvent>(OnPathRecalculated);
@@ -453,6 +465,76 @@ namespace ETD.Enemies
             Profiler.EndSample();
         }
 
+        /// <summary>
+        /// Single-pass targeting query that honors the selected TargetingMode and the
+        /// spawn-corridor protection. No allocations, no LINQ — safe for the hot path.
+        /// First  = closest to the exit (path progress, not spawn order).
+        /// Last   = furthest from the exit. Strongest = highest max HP. Closest = nearest.
+        /// </summary>
+        public EnemyController GetBestEnemyInRange(Vector3 center, float radius, bool canTargetStealth, TargetingMode mode)
+        {
+            Profiler.BeginSample("EnemyManager.GetBestEnemyInRange");
+            if (_activeEnemies.Count == 0)
+            {
+                Profiler.EndSample();
+                return null;
+            }
+
+            RebuildSpatialIndexIfNeeded();
+
+            float sqrRadius = radius * radius;
+            EnemyController best = null;
+            float bestScore = 0f;
+
+            int minX = WorldToSpatialCell(center.x - radius);
+            int maxX = WorldToSpatialCell(center.x + radius);
+            int minZ = WorldToSpatialCell(center.z - radius);
+            int maxZ = WorldToSpatialCell(center.z + radius);
+
+            for (int x = minX; x <= maxX; x++)
+            {
+                for (int z = minZ; z <= maxZ; z++)
+                {
+                    if (!TryGetSpatialBucket(x, z, out var bucket))
+                        continue;
+
+                    for (int i = 0; i < bucket.Count; i++)
+                    {
+                        EnemyController enemy = bucket[i];
+                        if (enemy == null || enemy.IsDead) continue;
+                        if (enemy.IsStealth && !enemy.IsRevealed && !canTargetStealth) continue;
+                        if (!enemy.IsTargetable) continue;
+
+                        Vector3 enemyPosition = enemy.transform.position;
+                        float dx = enemyPosition.x - center.x;
+                        float dz = enemyPosition.z - center.z;
+                        float sqrDist = (dx * dx) + (dz * dz);
+                        if (sqrDist > sqrRadius) continue;
+
+                        // Every mode is expressed as a "maximize" score.
+                        float score;
+                        switch (mode)
+                        {
+                            case TargetingMode.Last:      score = enemy.DistanceToExit; break;
+                            case TargetingMode.Strongest: score = enemy.MaxHealth; break;
+                            case TargetingMode.Closest:   score = -sqrDist; break;
+                            case TargetingMode.First:
+                            default:                      score = -enemy.DistanceToExit; break;
+                        }
+
+                        if (best == null || score > bestScore)
+                        {
+                            best = enemy;
+                            bestScore = score;
+                        }
+                    }
+                }
+            }
+
+            Profiler.EndSample();
+            return best;
+        }
+
         public EnemyController GetFirstEnemyInRange(Vector3 center, float radius, bool canTargetStealth)
         {
             Profiler.BeginSample("EnemyManager.GetFirstEnemyInRange");
@@ -484,6 +566,7 @@ namespace ETD.Enemies
                         EnemyController enemy = bucket[i];
                         if (enemy == null || enemy.IsDead) continue;
                         if (enemy.IsStealth && !enemy.IsRevealed && !canTargetStealth) continue;
+                        if (!enemy.IsTargetable) continue;
 
                         Vector3 enemyPosition = enemy.transform.position;
                         float dx = enemyPosition.x - center.x;

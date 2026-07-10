@@ -3,6 +3,7 @@
 // Central place to query all active stat modifiers from traits, spec cards,
 // and wave-based scaling. Avoids scattering modifier logic everywhere.
 // ============================================================================
+using System.Collections.Generic;
 using UnityEngine;
 using ETD.Core;
 using ETD.Data;
@@ -11,6 +12,11 @@ namespace ETD.Gameplay
 {
     public class RunStatModifiers : MonoBehaviour, IRunStatModifiers
     {
+        [Header("Entropy Engine (non-lethal current-HP decay)")]
+        [Tooltip("Enemies can never be decayed below this fraction of their max HP. " +
+                 "Entropy Engine is intentionally non-lethal — turrets must finish enemies off.")]
+        [SerializeField] private float _entropyMinHpFraction = 0.005f;
+
         private RunManager _runManager;
         private GameDatabase _database;
 
@@ -78,6 +84,11 @@ namespace ETD.Gameplay
             if (_burstWindowActive)
                 mult += GetTraitBonus(TraitEffectType.BurstDamageWindow);
 
+            // Covenant downsides: Flame and Storm trade global direct damage for their
+            // elemental upside (burn / chain scaling). Fixed -10% each.
+            if (GetTraitBonus(TraitEffectType.FlameCovenant) > 0f) mult -= 0.10f;
+            if (GetTraitBonus(TraitEffectType.StormCovenant) > 0f) mult -= 0.10f;
+
             // Spec: Wealth Loop / Doom Reserve (damage per gold held)
             float perGoldHeld = data.GetSpecBonus(SpecCardEffectType.DamagePerGoldHeld);
             perGoldHeld += data.GetSpecBonus(SpecCardEffectType.DamagePerGoldHeldStrong);
@@ -104,6 +115,9 @@ namespace ETD.Gameplay
 
             mult += GetTraitBonus(TraitEffectType.BonusAttackSpeed);
             mult += data.GetSpecBonus(SpecCardEffectType.AttackSpeedPercent);
+
+            // Frost Covenant downside: -10% attack speed for +damage vs slowed/frozen.
+            if (GetTraitBonus(TraitEffectType.FrostCovenant) > 0f) mult -= 0.10f;
 
             float perWaveAttackSpeed = data.GetSpecBonus(SpecCardEffectType.AttackSpeedPerWave)
                                      + GetTraitBonus(TraitEffectType.AllStatsPerWave);
@@ -158,6 +172,7 @@ namespace ETD.Gameplay
         {
             float bonus = GetTraitBonus(TraitEffectType.DamageVsFrozen);
             bonus += _runManager.RunData.GetSpecBonus(SpecCardEffectType.DamageVsSlowedFrozen);
+            bonus += GetTraitBonus(TraitEffectType.FrostCovenant); // covenant upside
             return 1f + bonus;
         }
 
@@ -181,6 +196,7 @@ namespace ETD.Gameplay
         {
             float bonus = _runManager.RunData.GetSpecBonus(SpecCardEffectType.BurnDamage);
             bonus += _runManager.RunData.GetSpecBonus(SpecCardEffectType.BurnDamageStrong);
+            bonus += GetTraitBonus(TraitEffectType.FlameCovenant); // covenant upside
             return 1f + bonus;
         }
 
@@ -195,12 +211,14 @@ namespace ETD.Gameplay
             float traitBonus = GetTraitBonus(TraitEffectType.ChainTargetBonus);
             if (traitBonus > 0) bonus += Mathf.RoundToInt(traitBonus);
             bonus += Mathf.RoundToInt(_runManager.RunData.GetSpecBonus(SpecCardEffectType.ChainTargetBonus));
+            if (GetTraitBonus(TraitEffectType.StormCovenant) > 0f) bonus += 1; // covenant upside
             return bonus;
         }
 
         public float GetChainDamageMultiplier()
         {
-            return 1f + _runManager.RunData.GetSpecBonus(SpecCardEffectType.ChainDamage);
+            return 1f + _runManager.RunData.GetSpecBonus(SpecCardEffectType.ChainDamage)
+                      + GetTraitBonus(TraitEffectType.StormCovenant); // covenant upside
         }
 
         public float GetChainRangeMultiplier()
@@ -338,6 +356,20 @@ namespace ETD.Gameplay
             return NormalizePercentLikeValue(GetTraitBonus(TraitEffectType.MaxHPDecayPerSecond));
         }
 
+        // Catalytic Burn: adds to TurretController's burn-from-hit fraction.
+        public float GetBurnFromHitBonus()
+        {
+            return _runManager.RunData.GetSpecBonus(SpecCardEffectType.BurnFromHit);
+        }
+
+        // Elemental Relay (Exposure): bonus burn/chain damage taken by enemies inside
+        // a Support debuff aura. Hard-capped at +25% per the design doc.
+        public float GetSupportExposure()
+        {
+            return Mathf.Clamp(
+                _runManager.RunData.GetSpecBonus(SpecCardEffectType.SupportExposure), 0f, 0.25f);
+        }
+
         private float GetWaveScalingMultiplier(float perWaveBonus, int wave)
         {
             if (perWaveBonus <= 0f || wave <= 0)
@@ -392,10 +424,12 @@ namespace ETD.Gameplay
                 }
             }
 
-            // Entropy Engine: percent of max HP per second to all enemies.
+            // Entropy Engine: non-lethal decay of a fraction of CURRENT HP per second.
+            // Softens extreme tanks but can never kill (floored), so it is never a
+            // standalone win condition. Counts toward percent-HP damage tracking.
             float hpDecay = GetMaxHPDecayPerSecond();
             if (hpDecay > 0f)
-                ApplyGlobalPureMaxHPDamage(hpDecay * Time.deltaTime);
+                ApplyGlobalNonLethalDecay(hpDecay * Time.deltaTime);
         }
 
         private void UpdateTimedBuffs()
@@ -405,7 +439,11 @@ namespace ETD.Gameplay
         }
 
 
-        private void ApplyGlobalPureMaxHPDamage(float maxHpFraction)
+        // Entropy Engine tick. Removes a fraction of each enemy's CURRENT HP, floored
+        // so it can never kill. Reports the removed HP to percent-HP tracking / the
+        // Entropy unlock, but deliberately does NOT spawn a floating damage number per
+        // enemy per frame (that would spam the screen).
+        private void ApplyGlobalNonLethalDecay(float currentHpFraction)
         {
             var enemyMgr = ServiceLocator.Get<Enemies.EnemyManager>();
             if (enemyMgr == null) return;
@@ -416,16 +454,13 @@ namespace ETD.Gameplay
                 var e = enemies[i];
                 if (e == null || e.IsDead) continue;
 
-                float damage = e.MaxHealth * maxHpFraction;
-                EventBus.Publish(new PercentHPDamageEvent
-                {
-                    DamageAmount = damage
-                });
+                float applied = e.ApplyNonLethalDecay(currentHpFraction, _entropyMinHpFraction);
+                if (applied <= 0f) continue;
 
-                e.TakePureDamage(damage);
+                EventBus.Publish(new PercentHPDamageEvent { DamageAmount = applied });
 
                 if (_runManager?.RunData != null)
-                    _runManager.RunData.TotalPercentHPDamage += damage;
+                    _runManager.RunData.TotalPercentHPDamage += applied;
             }
         }
 
@@ -446,6 +481,24 @@ namespace ETD.Gameplay
         // HELPERS
         // =================================================================
 
+        // Effective trait values (base * shop-upgrade multiplier) cached per run.
+        // GetTraitBonus runs in stat-recalc hot paths; the save lookup + math only
+        // happens once per trait per run.
+        private readonly Dictionary<string, float> _traitEffectiveValueCache = new();
+
+        private float GetTraitEffectiveValue(string traitId, TraitData trait)
+        {
+            if (_traitEffectiveValueCache.TryGetValue(traitId, out float cached))
+                return cached;
+
+            // FIX: shop trait upgrades (SaveData.TraitUpgradeLevels) previously had no
+            // gameplay effect at all — every consumer read the raw EffectValue.
+            int upgradeLevel = SaveSystem.GetTraitUpgradeLevel(SaveSystem.Load(), traitId);
+            float value = trait.GetEffectiveValue(upgradeLevel);
+            _traitEffectiveValueCache[traitId] = value;
+            return value;
+        }
+
         private float GetTraitBonus(TraitEffectType type)
         {
             float total = 0f;
@@ -454,7 +507,7 @@ namespace ETD.Gameplay
             {
                 var trait = _database.GetTrait(traitId);
                 if (trait != null && trait.EffectType == type)
-                    total += trait.EffectValue;
+                    total += GetTraitEffectiveValue(traitId, trait);
             }
             return total;
         }

@@ -80,7 +80,7 @@ MonoBehaviour:
   _fillImage: {fileID: 259249725393439590}
   _backgroundImage: {fileID: 7111237662302071016}
   _delayedFillImage: {fileID: 6463226560265635806}
-  _offset: {x: 0, y: 2, z: 0}
+  _offset: {x: 0, y: 5.42, z: 0}
   _barWidth: 1
   _barHeight: 0.12
   _hideWhenFull: 1
@@ -10600,10 +10600,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: ETD.Enemies::ETD.Enemies.EnemyVFXConfig
   _hitFlashDuration: 0.04
-  _hitFlashColor: {r: 1, g: 1, b: 1, a: 1}
   _laserPulseInterval: 0.25
   _laserPulseDuration: 0.03
-  _laserPulseColor: {r: 0.8, g: 1, b: 1, a: 1}
   _deathVFX: {fileID: 7404855247100362544, guid: 3f58b0aaf793eec458b399ffbd2b2255, type: 3}
   _flashMat: {fileID: 2100000, guid: 6ac969bfbcbe1d141b54bd8034b2d98c, type: 2}
   _revealedMat: {fileID: 0}

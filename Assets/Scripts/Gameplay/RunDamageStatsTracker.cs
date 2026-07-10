@@ -300,13 +300,8 @@ namespace ETD.Gameplay
 
         public static string FormatNumber(float value)
         {
-            if (value >= 1000000000f)
-                return (value / 1000000000f).ToString("0.##", CultureInfo.InvariantCulture) + "B";
-            if (value >= 1000000f)
-                return (value / 1000000f).ToString("0.##", CultureInfo.InvariantCulture) + "M";
-            if (value >= 1000f)
-                return (value / 1000f).ToString("0.#", CultureInfo.InvariantCulture) + "K";
-            return Mathf.RoundToInt(value).ToString(CultureInfo.InvariantCulture);
+            // Delegate to the canonical formatter (adds T/Qa..Dc + scientific + NaN/Inf safety).
+            return ETD.Core.NumberFormat.Compact(value);
         }
 
         private readonly struct Row

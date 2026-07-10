@@ -9,12 +9,24 @@ namespace ETD.UI
 {
     public static class BalanceDescriptionFormatter
     {
+        /// <summary>
+        /// Effect value including the player's permanent shop upgrades — what the trait
+        /// actually does in a run. All trait displays must use this instead of the raw
+        /// EffectValue, otherwise upgraded traits look identical to base ones.
+        /// </summary>
+        public static float GetDisplayEffectValue(TraitData data)
+        {
+            if (data == null) return 0f;
+            int level = SaveSystem.GetTraitUpgradeLevel(SaveSystem.Load(), data.Id);
+            return data.GetEffectiveValue(level);
+        }
+
         public static string AppendTraitNumbers(TraitData data, string localizedDescription)
         {
             if (data == null)
                 return localizedDescription ?? string.Empty;
 
-            string effect = FormatTraitEffect(data.EffectType, data.EffectValue);
+            string effect = FormatTraitEffect(data.EffectType, GetDisplayEffectValue(data));
             return AppendEffectLine(localizedDescription, effect);
         }
 
@@ -49,14 +61,17 @@ namespace ETD.UI
                 TraitEffectType.DamageVsFrozen => $"{pct} {LocalizationManager.Get(header + "damage_vs_frozen", "damage vs frozen/slowed")}",
                 TraitEffectType.ChainBounceBack => $"{FormatPercentUnsigned(value)} {LocalizationManager.Get(header + "chain_bounce_back", "chain bounce chance")}",
                 TraitEffectType.LaserRefraction => $"{FormatPercentSigned(value)} {LocalizationManager.Get(header + "laser_refraction", "laser refraction damage")}",
-                TraitEffectType.DamagePerGoldSpent => $"+{NormalizePercent(value) * 100f:0.##}% {LocalizationManager.Get(header + "damage_per_gold_spent", "damage per 100 gold spent")}",
+                TraitEffectType.DamagePerGoldSpent => $"{FormatPercentPlus(value)} {LocalizationManager.Get(header + "damage_per_gold_spent", "damage per 100 gold spent")}",
                 TraitEffectType.GlobalSlowPulse => $"{FormatPercentUnsigned(value)} {LocalizationManager.Get(header + "global_slow_pulse", "global slow pulse")}",
                 TraitEffectType.BurstDamageWindow => $"{pct} {LocalizationManager.Get(header + "burst_damage_window", "burst damage window")}",
-                TraitEffectType.AllStatsPerWave => $"+{NormalizePercent(value) * 100f:0.##}% {LocalizationManager.Get(header + "all_stats_per_wave", "all stats per wave")}",
-                TraitEffectType.MaxHPDecayPerSecond => $"{FormatPercentUnsigned(value)} {LocalizationManager.Get(header + "max_hp_decay_per_second", "max HP decay per second")}",
+                TraitEffectType.AllStatsPerWave => $"{FormatPercentPlus(value)} {LocalizationManager.Get(header + "all_stats_per_wave", "all stats per wave")}",
+                TraitEffectType.MaxHPDecayPerSecond => $"{FormatPercentUnsigned(value)} {LocalizationManager.Get(header + "max_hp_decay_per_second", "current HP decay/s (can't kill)")}",
                 TraitEffectType.DamagePerOwnedTurret => $"{pct} {LocalizationManager.Get(header + "damage_per_owned_turret", "damage per owned turret")}",
                 TraitEffectType.GradeBonus => $"{pct} {LocalizationManager.Get(header + "grade_bonus", "higher rarity chance")}",
-                _ => $"+{value:0.##} {type}"
+                TraitEffectType.FlameCovenant => $"{pct} {LocalizationManager.Get(header + "flame_covenant", "burn damage, -10% direct damage")}",
+                TraitEffectType.FrostCovenant => $"{pct} {LocalizationManager.Get(header + "frost_covenant", "damage vs slowed/frozen, -10% attack speed")}",
+                TraitEffectType.StormCovenant => $"{pct} {LocalizationManager.Get(header + "storm_covenant", "chain damage, +1 chain target, -10% direct damage")}",
+                _ => $"+{SmartDigits(value)} {type}"
             };
         }
 
@@ -87,17 +102,19 @@ namespace ETD.UI
                 SpecCardEffectType.DamageVsSlowedFrozen => $"{pct} {L("spec_effect_damage_vs_slowed", "damage vs slowed/frozen enemies")}",
                 SpecCardEffectType.GoldGain => $"{pct} {L("spec_effect_gold_gain", "gold gain")}",
                 SpecCardEffectType.ShockChance => $"{FormatPercentUnsigned(value)} {L("spec_effect_shock_chance", "shock chance")}",
-                SpecCardEffectType.DamagePerDistance => $"+{NormalizePercent(value) * 100f:0.##}% {L("spec_effect_damage_per_distance", "damage per tile distance")}",
-                SpecCardEffectType.DamagePerGoldHeld => $"+{NormalizePercent(value) * 100f:0.##}% {L("spec_effect_damage_per_gold", "damage per 1000 gold held")}",
+                SpecCardEffectType.DamagePerDistance => $"{FormatPercentPlus(value)} {L("spec_effect_damage_per_distance", "damage per tile distance")}",
+                SpecCardEffectType.DamagePerGoldHeld => $"{FormatPercentPlus(value)} {L("spec_effect_damage_per_gold", "damage per 1000 gold held")}",
                 SpecCardEffectType.DeathExplosion => $"{FormatPercentUnsigned(value)} {L("spec_effect_death_explosion", "death explosion chance")}",
                 SpecCardEffectType.BurnSpreadOnDeath => $"{FormatPercentUnsigned(value)} {L("spec_effect_burn_spread_death", "burn spread on death")}",
-                SpecCardEffectType.AttackSpeedPerNearbyEnemy => $"+{NormalizePercent(value) * 100f:0.##}% {L("spec_effect_attack_speed_nearby", "attack speed per nearby enemy")}",
-                SpecCardEffectType.DamagePerWave => $"+{NormalizePercent(value) * 100f:0.##}% {L("spec_effect_damage_per_wave", "damage per wave")}",
-                SpecCardEffectType.AttackSpeedPerWave => $"+{NormalizePercent(value) * 100f:0.##}% {L("spec_effect_attack_speed_per_wave", "attack speed per wave")}",
-                SpecCardEffectType.DamagePerGoldHeldStrong => $"+{NormalizePercent(value) * 100f:0.##}% {L("spec_effect_damage_per_gold", "damage per 1000 gold held")}",
+                SpecCardEffectType.AttackSpeedPerNearbyEnemy => $"{FormatPercentPlus(value)} {L("spec_effect_attack_speed_nearby", "attack speed per nearby enemy")}",
+                SpecCardEffectType.DamagePerWave => $"{FormatPercentPlus(value)} {L("spec_effect_damage_per_wave", "damage per wave")}",
+                SpecCardEffectType.AttackSpeedPerWave => $"{FormatPercentPlus(value)} {L("spec_effect_attack_speed_per_wave", "attack speed per wave")}",
+                SpecCardEffectType.DamagePerGoldHeldStrong => $"{FormatPercentPlus(value)} {L("spec_effect_damage_per_gold", "damage per 1000 gold held")}",
                 SpecCardEffectType.FreezeAmplifier => $"{pct} {L("spec_effect_freeze_amplifier", "damage vs frozen enemies")}",
                 SpecCardEffectType.HealHealth => $"+{value:0} {L("spec_effect_heal", "health")}",
-                _ => $"+{value:0.##} {type}"
+                SpecCardEffectType.BurnFromHit => $"{FormatPercentPlus(value)} {L("spec_effect_burn_from_hit", "of hit damage added to burn")}",
+                SpecCardEffectType.SupportExposure => $"{FormatPercentPlus(value)} {L("spec_effect_support_exposure", "burn/chain damage vs aura-slowed enemies")}",
+                _ => $"+{SmartDigits(value)} {type}"
             };
         }
 
@@ -117,7 +134,31 @@ namespace ETD.UI
 
         private static float NormalizePercent(float value) => value > 1f ? value * 0.01f : value;
         private static float AbsPercent(float value) => value > 1f ? value * 0.01f : System.Math.Abs(value);
-        private static string FormatPercentSigned(float value) => $"{NormalizePercent(value) * 100f:+0.##;-0.##;0}%";
-        private static string FormatPercentUnsigned(float value) => $"{System.Math.Abs(NormalizePercent(value)) * 100f:0.##}%";
+
+        // Adaptive precision so a small-but-nonzero effect never renders as "0" /
+        // "0.00" (which made low per-wave / per-gold traits look like no effect).
+        // >=1 shows up to 3 decimals so upgraded trait values (1% -> 1.75%, 1.045%)
+        // are visibly different from base; >=0.01 up to 4; smaller up to 6.
+        private static string SmartDigits(float x)
+        {
+            float a = System.Math.Abs(x);
+            if (a < 1e-7f) return "0";
+            if (a >= 1f) return x.ToString("0.###");
+            if (a >= 0.01f) return x.ToString("0.####");
+            return x.ToString("0.######");
+        }
+
+        private static string FormatPercentSigned(float value)
+        {
+            float p = NormalizePercent(value) * 100f;
+            if (System.Math.Abs(p) < 1e-7f) return "0%";
+            return (p > 0f ? "+" : "-") + SmartDigits(System.Math.Abs(p)) + "%";
+        }
+
+        private static string FormatPercentUnsigned(float value)
+            => SmartDigits(System.Math.Abs(NormalizePercent(value)) * 100f) + "%";
+
+        private static string FormatPercentPlus(float value)
+            => "+" + SmartDigits(System.Math.Abs(NormalizePercent(value)) * 100f) + "%";
     }
 }

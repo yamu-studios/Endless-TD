@@ -29,9 +29,8 @@ namespace ETD.Utilities
         /// </summary>
         public static string FormatNumber(int number)
         {
-            if (number >= 1000000) return $"{number / 1000000f:F1}M";
-            if (number >= 1000) return $"{number / 1000f:F1}K";
-            return number.ToString();
+            // Delegate to the canonical formatter (K/M/B/T/Qa..Dc, then scientific).
+            return ETD.Core.NumberFormat.Compact(number);
         }
 
         /// <summary>

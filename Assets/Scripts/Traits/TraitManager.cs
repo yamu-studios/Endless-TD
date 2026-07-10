@@ -49,10 +49,15 @@ namespace ETD.Traits
         public float GetTotalBonus(TraitEffectType effectType)
         {
             float total = 0f;
+            var save = SaveSystem.Load(); // cached by SaveSystem
             for (int i = 0; i < _activeTraits.Count; i++)
             {
                 if (_activeTraits[i].EffectType == effectType)
-                    total += _activeTraits[i].EffectValue;
+                {
+                    // Include permanent shop upgrades, matching RunStatModifiers.
+                    int level = SaveSystem.GetTraitUpgradeLevel(save, _activeTraits[i].Id);
+                    total += _activeTraits[i].GetEffectiveValue(level);
+                }
             }
             return total;
         }

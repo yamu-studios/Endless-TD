@@ -58,7 +58,11 @@ namespace ETD.Data
         FreezeAmplifier,         // SC043 +100% dmg to frozen + chill spread
 
         // Utility (always available)
-        HealHealth
+        HealHealth,
+
+        // v0.12 - appended, do not reorder.
+        BurnFromHit,  // Catalytic Burn: adds to the burn-from-hit fraction (0.15 = +15pp of hit damage as burn)
+        SupportExposure // Elemental Relay: enemies inside a Support debuff aura take bonus burn/chain damage (capped 25%)
     }
 
     [CreateAssetMenu(fileName = "New Spec Card", menuName = "ETD/Spec Card Data")]

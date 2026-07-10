@@ -23,6 +23,16 @@ namespace ETD.UI
         [SerializeField] private TMP_Text _rerollButtonText;
         [SerializeField] private TMP_Text _rerollTokenText;
 
+        [Tooltip("Crystal icon shown next to the cost while the button is in PAID mode " +
+                 "(free tokens exhausted). Hidden while free tokens remain. Assign your " +
+                 "crystal sprite object here.")]
+        [SerializeField] private GameObject _crystalIcon;
+
+        [Tooltip("Shows the player's CURRENT crystal total while the button is in PAID " +
+                 "mode, so they can see what they can afford. Hidden while free tokens " +
+                 "remain. Assign a TextMeshPro text here.")]
+        [SerializeField] private TMP_Text _crystalAmountText;
+
 
         [Header("Info")]
         [SerializeField] private TMP_Text _levelText;
@@ -55,7 +65,7 @@ namespace ETD.UI
             _isShowing = true;
 
             //if (_levelText != null)
-            //    _levelText.text = $"{LocalizationManager.Get("ui_level_up", "LEVEL UP!")} — {LocalizationManager.Get("ui_level", "Level")} {level}";
+            //    _levelText.text = $"{LocalizationManager.Get("ui_level_up", "LEVEL UP!")} ï¿½ {LocalizationManager.Get("ui_level", "Level")} {level}";
 
             for (int i = 0; i < _cardSlots.Length; i++)
             {
@@ -107,30 +117,66 @@ namespace ETD.UI
 
         private void OnRerollClicked()
         {
+            // Free tokens first; once exhausted the SAME button switches to paid
+            // crystal rerolls (escalating cost, capped per offer by RunManager).
+            if (currentRerolls > 0)
+            {
+                currentRerolls--;
+                if (_runManager != null && _runManager.RunData != null)
+                    _runManager.RunData.ActiveRerollTokens = currentRerolls;
 
-            if (currentRerolls <= 0) return;
-            currentRerolls--;
-            if (_runManager != null && _runManager.RunData != null)
-                _runManager.RunData.ActiveRerollTokens = currentRerolls;
+                AudioManager.Instance?.PlaySFX(GameSoundConfig.Instance?.ButtonClick, SoundCategory.UI, 0.9f, 1.1f);
+                _runManager?.RerollSpecCards();
+                ShowCards(_runManager?.RunData?.Level ?? 1);
+                return;
+            }
 
-            AudioManager.Instance?.PlaySFX(GameSoundConfig.Instance?.ButtonClick, SoundCategory.UI, 0.9f, 1.1f);
-            _runManager?.RerollSpecCards();
-            ShowCards(_runManager?.RunData?.Level ?? 1);
+            if (_runManager == null) return;
+            if (_runManager.TryPaidCrystalReroll())
+            {
+                AudioManager.Instance?.PlaySFX(GameSoundConfig.Instance?.ButtonClick, SoundCategory.UI, 0.9f, 1.1f);
+                ShowCards(_runManager.RunData?.Level ?? 1);
+            }
+            else
+            {
+                // Capped or can't afford â€” resync the button state.
+                RefreshRerollButton();
+            }
         }
 
         private void RefreshRerollButton()
         {
+            if (currentRerolls > 0)
+            {
+                // Free-token mode: show remaining tokens (original behavior).
+                if (_rerollButton != null) _rerollButton.interactable = true;
+                if (_rerollTokenText != null) _rerollTokenText.text = currentRerolls.ToString();
+                if (_crystalIcon != null) _crystalIcon.SetActive(false);
+                if (_crystalAmountText != null) _crystalAmountText.gameObject.SetActive(false);
+                return;
+            }
 
-            bool canReroll = currentRerolls > 0;
+            // Paid mode: show the crystal cost; disable when capped or unaffordable.
+            int cost = _runManager != null ? _runManager.GetNextPaidRerollCost() : -1;
+            int crystals = SaveSystem.Load().MetaCurrency;
 
-            if (_rerollButton != null) _rerollButton.interactable = canReroll;
+            if (_crystalIcon != null) _crystalIcon.SetActive(true);
+            if (_crystalAmountText != null)
+            {
+                _crystalAmountText.gameObject.SetActive(true);
+                _crystalAmountText.text = ETD.Core.NumberFormat.Compact(crystals);
+            }
+            bool canPay = cost >= 0 && crystals >= cost;
 
-            //string rerollLabel = LocalizationManager.Get("ui_reroll", "Re-Roll");
-            //if (_rerollButtonText != null)
-            //    _rerollButtonText.text = //isFree ? $"{rerollLabel} (FREE)" : $"{rerollLabel} ({tokens})";
+            if (_rerollButton != null) _rerollButton.interactable = canPay;
 
             if (_rerollTokenText != null)
-                _rerollTokenText.text = currentRerolls.ToString(); //isFree ? "FREE" : tokens.ToString();
+            {
+                // Cost is crystal-colored so players see it is no longer a free token.
+                _rerollTokenText.text = cost >= 0
+                    ? $"<color=#7FDBFF>{cost}</color>"
+                    : "-";
+            }
         }
 
         private void OnDestroy()

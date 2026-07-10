@@ -24,10 +24,8 @@ namespace ETD.Meta
         }
 
 
-        private void Update()
-        {
-            if (Input.GetKey(KeyCode.F)) AddMeta();
-        }
+        // (debug hold-F crystal cheat removed for release — use Tools > ETD > Dev Tools instead)
+
         // === SHOP ===
 
         public bool BuyTraitSlot(int cost)

@@ -224,12 +224,9 @@ namespace ETD.UI
 
         private static string FormatAmount(float value)
         {
-            value = Mathf.Max(0f, value);
-            if (value >= 1_000_000f) return (value / 1_000_000f).ToString("0.#") + "M";
-            if (value >= 10_000f) return (value / 1_000f).ToString("0.#") + "K";
-            if (value >= 100f) return Mathf.RoundToInt(value).ToString();
-            if (value >= 10f) return value.ToString("0");
-            return value.ToString("0.#");
+            // Canonical formatter so late-game combat text stays readable (…B/T/Qa…)
+            // instead of showing five- and six-digit "M" numbers.
+            return ETD.Core.NumberFormat.Compact(Mathf.Max(0f, value));
         }
     }
 }

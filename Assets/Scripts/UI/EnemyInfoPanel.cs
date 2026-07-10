@@ -218,7 +218,10 @@ namespace ETD.UI
                 return string.Empty;
 
             string status = string.Empty;
-            AppendStatus(ref status, enemy.HasStatus(StatusEffectType.Burn), LocalizationManager.Get("status_burn", "Burn"));
+            string burnLabel = LocalizationManager.Get("status_burn", "Burn");
+            if (enemy.BurnStackCount > 1)
+                burnLabel += " x" + enemy.BurnStackCount;
+            AppendStatus(ref status, enemy.HasStatus(StatusEffectType.Burn), burnLabel);
             AppendStatus(ref status, enemy.HasStatus(StatusEffectType.Slow), LocalizationManager.Get("status_slow", "Slow"));
             AppendStatus(ref status, enemy.HasStatus(StatusEffectType.Freeze), LocalizationManager.Get("status_freeze", "Freeze"));
             AppendStatus(ref status, enemy.IsStealth && !enemy.IsRevealed, LocalizationManager.Get("status_stealth", "Stealth"));
@@ -262,9 +265,8 @@ namespace ETD.UI
 
         private static string FormatNumber(float value)
         {
-            if (value >= 1_000_000f) return (value / 1_000_000f).ToString("0.##") + "M";
-            if (value >= 10_000f) return (value / 1_000f).ToString("0.#") + "K";
-            return value.ToString("0.#");
+            // Canonical formatter (K/M/B/T/Qa..Dc, then scientific; NaN/Inf safe).
+            return ETD.Core.NumberFormat.Compact(value);
         }
 
         private static void SetText(TMP_Text text, string value)

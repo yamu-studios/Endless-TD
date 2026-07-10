@@ -96,54 +96,20 @@ namespace ETD.UI
         {
             string lockInfo = data.IsUnlockedByDefault ? null : data.UnlockCondition;
 
+            // Description in Body, numeric effect in Stats (matching the turret
+            // tooltip convention). Previously the effect was appended to Body AND
+            // shown in Stats, so it appeared twice.
             return new TooltipContent
             {
                 Title = SOLocalization.GetName("trait_" + data.LocalizationKey, data.DisplayName),
-                Body = BalanceDescriptionFormatter.AppendTraitNumbers(
-                    data,
-                    SOLocalization.GetDesc("trait_" + data.LocalizationKey, data.Description)),
-                Stats = BalanceDescriptionFormatter.FormatTraitEffect(data.EffectType, data.EffectValue),
+                Body = SOLocalization.GetDesc("trait_" + data.LocalizationKey, data.Description),
+                // Effective value (base * shop upgrades), so upgraded traits are visible.
+                Stats = BalanceDescriptionFormatter.FormatTraitEffect(
+                    data.EffectType, BalanceDescriptionFormatter.GetDisplayEffectValue(data)),
                 TitleColor = data.GetRarityColor(),
                 HasTitleColor = data.Grade >= SpecCardRarity.Rare
             };
         }
-
-        private static string FormatTraitEffect(TraitEffectType type, float value)
-        {
-            float mulitplier = 1;
-            if (value <= 1) mulitplier = 100;
-            string pct = $"{value * mulitplier:F0}%";
-            string header = "trait_effect_type_";
-            return type switch
-            {
-                TraitEffectType.BonusRange => $"+{pct} {LocalizationManager.Get(header+"bonus_range", "turret range")}",
-                TraitEffectType.ReduceUpgradeCost => $"-{pct} {LocalizationManager.Get(header + "reduce_upgrade_cost", "upgrade cost")}",
-                TraitEffectType.BonusAttackSpeed => $"+{pct} {LocalizationManager.Get(header + "attack_speed", "attack speed")}",
-                TraitEffectType.BonusDamage => $"+{pct} {LocalizationManager.Get(header + "bonus_damage", "damage")}",
-                TraitEffectType.BonusEXP => $"+{pct} {LocalizationManager.Get(header + "bonus_exp", "experience")}",
-                TraitEffectType.SlowStrength => $"+{pct} {LocalizationManager.Get(header + "slow_strength", "slow strength")}",
-                TraitEffectType.ChainTargetBonus => $"+{value:F0} {LocalizationManager.Get(header + "chain_target_bonus", "chain targets")}",
-                TraitEffectType.BurnDuration => $"+{pct} {LocalizationManager.Get(header + "burn_duration", "burn duration")}",
-                TraitEffectType.CriticalHitChance => $"+{pct} {LocalizationManager.Get(header + "critical_hit_chance", "crit_chance")}",
-                TraitEffectType.BonusGold => $"+{pct} {LocalizationManager.Get(header + "bonus_gold", "gold gain")}",
-                TraitEffectType.DamageVsHighHP => $"+{pct} {LocalizationManager.Get(header + "damage_vs_high_hp", "vs elites/bosses")}",
-                TraitEffectType.AuraPower => $"+{pct} {LocalizationManager.Get(header + "aura_power", "support aura power")}",
-                TraitEffectType.BurnSpread => $"{pct} {LocalizationManager.Get(header + "burn_spread", "burn spread on kill")}",
-                TraitEffectType.DamageVsFrozen => $"+{pct} {LocalizationManager.Get(header + "damage_vs_frozen", "vs frozen enemies")}",
-                TraitEffectType.ChainBounceBack => $"{pct} {LocalizationManager.Get(header + "chain_bounce_back", "chain bounce back")}",
-                TraitEffectType.LaserRefraction => $"+{value:F0} {LocalizationManager.Get(header + "laser_refraction", "beam refraction")}",
-                TraitEffectType.DamagePerGoldSpent => $"+{value:F2}% {LocalizationManager.Get(header + "damage_per_gold_spent", "dmg per 100g spent")}",
-                TraitEffectType.GlobalSlowPulse => $"{pct} {LocalizationManager.Get(header + "global_slow_pulse", "global slow pulse")}",
-                TraitEffectType.BurstDamageWindow => $"+{pct} {LocalizationManager.Get(header + "burst_damage_window", "burst window")}",
-                TraitEffectType.AllStatsPerWave => $"+{value:F2}% {LocalizationManager.Get(header + "all_stats_per_wave", "all stats/wave")}",
-                TraitEffectType.MaxHPDecayPerSecond => $"{value:F1}% {LocalizationManager.Get(header + "max_hp_decay_per_second", "HP decay/s")}",
-                TraitEffectType.DamagePerOwnedTurret => $"+{pct} {LocalizationManager.Get(header + "damage_per_owned_turret", "per owned turret")}",
-                TraitEffectType.GradeBonus => $"+{pct} {LocalizationManager.Get(header + "grade_bonus", "better grade chance")}",
-                _ => $"+{value} {type}"
-            };
-        }
-
-       
 
         // === SPEC CARDS ===
 

@@ -24,10 +24,6 @@ namespace ETD.Core
 
         public static bool WantsEnemyIds = true;
 
-        [Header("Compatibility")]
-        [Tooltip("Keep disabled for performance. Only enable if another script explicitly subscribes to ChainLightningHitBatchEvent.")]
-        [SerializeField] private bool _publishLegacyEventBusEvent = false;
-
         [Header("Profiling")]
         [Tooltip("Keep disabled while diagnosing spikes. When disabled, ChainFlush.* markers appear directly in the Profiler instead of being hidden under one parent sample.")]
         [SerializeField] private bool _profileOuterFlushTotal = false;
@@ -188,27 +184,19 @@ namespace ETD.Core
                 sink.OnChainLightningHitBatch(count, enemyIds);
                 if (profileSinkWrapper) Profiler.EndSample();
             }
-            else
-            {
-                if (profileDetails) Profiler.BeginSample("ChainFlush.03.EventBusFallback");
-                EventBus.Publish(new ChainLightningHitBatchEvent
-                {
-                    Count = count,
-                    EnemyIds = enemyIds
-                });
-                if (profileDetails) Profiler.EndSample();
-            }
 
-            if (_publishLegacyEventBusEvent && sink != null)
+            // FIX (achievements): ALWAYS publish the batch event, not only when no
+            // sink exists. The direct sink call above is just a fast path for
+            // ChallengeTracker; passive listeners (SteamAchievementManager counts
+            // chain hits for ACH_LIGHTNING_NETWORK / ACH_ALL_EFFECTS) rely on this
+            // event. It fires at most once per frame, so the cost is negligible.
+            if (profileDetails) Profiler.BeginSample("ChainFlush.03.EventBusPublish");
+            EventBus.Publish(new ChainLightningHitBatchEvent
             {
-                if (profileDetails) Profiler.BeginSample("ChainFlush.04.LegacyEventBus");
-                EventBus.Publish(new ChainLightningHitBatchEvent
-                {
-                    Count = count,
-                    EnemyIds = enemyIds
-                });
-                if (profileDetails) Profiler.EndSample();
-            }
+                Count = count,
+                EnemyIds = enemyIds
+            });
+            if (profileDetails) Profiler.EndSample();
 
             if (profileDetails) Profiler.BeginSample("ChainFlush.05.ResetCounters");
             _hitCount = 0;

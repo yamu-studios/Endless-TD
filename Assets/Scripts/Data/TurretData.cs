@@ -102,6 +102,11 @@ namespace ETD.Data
         [Header("Radar")]
         public float RevealRange = 5.5f;
 
+        [Tooltip("Extra reveal range per radar level (0.08 = +0.08/level, roughly doubling a 3.5 " +
+                 "base reveal by level 50). Radar never attacks, so without this its upgrades " +
+                 "bought nothing (player-reported).")]
+        public float RevealRangePerLevel = 0.08f;
+
         [Header("Evolution (Lv 15)")]
         public int EvolveLevel = 15;
         public TurretEvolutionData PathA;
@@ -164,6 +169,13 @@ namespace ETD.Data
         public float ExtendedChainFalloff = 0.5f;
         public float ChainHPPercentDamage;     // TU005B: 5% current HP
         public float ChainHPCooldown = 8f;     // per-enemy cooldown
+
+        [Header("Late-Game Scaling (any evolved turret)")]
+        [Tooltip("Evolved turret hits deal this fraction of the target's CURRENT HP as bonus " +
+                 "damage (0.04 = +4% current HP per hit). This is the same scaling class as the " +
+                 "Lightning chain evolution, so non-lightning builds stay viable past wave 100+. " +
+                 "Counts toward percent-HP damage tracking.")]
+        public float HitCurrentHPPercent;
 
         [Header("Support Evolutions")]
         public bool BuffAttackSpeed;           // TU006A: +15% speed aura

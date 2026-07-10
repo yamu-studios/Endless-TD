@@ -50,6 +50,23 @@ namespace ETD.UI
         [SerializeField] private Image _evolvePathBIcon;
         [SerializeField] private TMP_Text _evolvePathBText;
 
+        [Header("Targeting Priority")]
+        [Tooltip("Optional: a TMP_Dropdown listing the priorities. Assign this OR the cycle button (or both).")]
+        [SerializeField] private TMP_Dropdown _targetingDropdown;
+        [Tooltip("Optional: a Button that advances to the next priority on click. Pair it with the label below.")]
+        [SerializeField] private Button _targetingCycleButton;
+        [Tooltip("Optional: label showing the current priority name (used with the cycle button, or as a caption).")]
+        [SerializeField] private TMP_Text _targetingModeLabel;
+        [Tooltip("Optional: the whole targeting UI group. Hidden automatically for Support/Radar turrets that don't target. " +
+                 "If left empty, the dropdown/button/label are hidden individually.")]
+        [SerializeField] private GameObject _targetingGroup;
+
+        // Player-selectable priorities (None is Support/Radar only and never listed).
+        private static readonly TargetingMode[] SelectableModes =
+        {
+            TargetingMode.First, TargetingMode.Last, TargetingMode.Strongest, TargetingMode.Closest
+        };
+
         private TurretController _selectedTurret;
         private int _selectedTurretId = -1;
         private TurretManager _turretManager;
@@ -73,6 +90,13 @@ namespace ETD.UI
             _sellButton?.onClick.AddListener(OnSellClicked);
             _evolvePathAButton?.onClick.AddListener(() => OnEvolveClicked(0));
             _evolvePathBButton?.onClick.AddListener(() => OnEvolveClicked(1));
+
+            if (_targetingDropdown != null)
+            {
+                PopulateTargetingDropdown();
+                _targetingDropdown.onValueChanged.AddListener(OnTargetingDropdownChanged);
+            }
+            _targetingCycleButton?.onClick.AddListener(OnTargetingCycleClicked);
 
             EventBus.Subscribe<TurretSelectedEvent>(OnTurretSelected);
             EventBus.Subscribe<TurretDeselectedEvent>(OnTurretDeselected);
@@ -292,14 +316,144 @@ namespace ETD.UI
             if (_sellButton != null)
                 _sellButton.interactable = true;
 
-          
+            RefreshTargetingUI();
         }
+
+        // =================================================================
+        // TARGETING PRIORITY UI
+        // =================================================================
+
+        private static string GetModeLabel(TargetingMode mode) => mode switch
+        {
+            TargetingMode.First     => LocalizationManager.Get("targeting_mode_first", "First"),
+            TargetingMode.Last      => LocalizationManager.Get("targeting_mode_last", "Last"),
+            TargetingMode.Strongest => LocalizationManager.Get("targeting_mode_strongest", "Strongest"),
+            TargetingMode.Closest   => LocalizationManager.Get("targeting_mode_closest", "Closest"),
+            _                       => LocalizationManager.Get("targeting_mode_first", "First"),
+        };
+
+        private static int IndexOfMode(TargetingMode mode)
+        {
+            for (int i = 0; i < SelectableModes.Length; i++)
+                if (SelectableModes[i] == mode) return i;
+            return 0;
+        }
+
+        private void PopulateTargetingDropdown()
+        {
+            if (_targetingDropdown == null) return;
+            _targetingDropdown.ClearOptions();
+            var opts = new System.Collections.Generic.List<string>(SelectableModes.Length);
+            for (int i = 0; i < SelectableModes.Length; i++)
+                opts.Add(GetModeLabel(SelectableModes[i]));
+            _targetingDropdown.AddOptions(opts);
+        }
+
+        /// <summary>
+        /// True when the selected turret actually aims at enemies. Checked by TYPE, not
+        /// by TargetingMode — older Support/Radar assets shipped with DefaultTargeting
+        /// = First, so the mode alone is not a reliable signal.
+        /// </summary>
+        private bool SelectedTurretUsesTargeting()
+        {
+            var data = _selectedTurret != null ? _selectedTurret.Data : null;
+            if (data == null) return false;
+            if (data.Type == TurretType.Support || data.Type == TurretType.Radar) return false;
+            return true;
+        }
+
+        private void RefreshTargetingUI()
+        {
+            if (_selectedTurret == null) return;
+
+            // Requested UX: the control stays visible for every turret. For Support/
+            // Radar it shows "-" and is locked (cannot be opened/clicked).
+            if (_targetingGroup != null) _targetingGroup.SetActive(true);
+
+            bool usesTargeting = SelectedTurretUsesTargeting();
+
+            if (_targetingDropdown != null)
+            {
+                _targetingDropdown.interactable = usesTargeting;
+
+                if (usesTargeting)
+                {
+                    // SetValueWithoutNotify so syncing the UI to the turret doesn't
+                    // re-fire onValueChanged (which would re-apply the mode / recurse).
+                    _targetingDropdown.SetValueWithoutNotify(IndexOfMode(_selectedTurret.CurrentTargetingMode));
+                    _targetingDropdown.RefreshShownValue();
+                }
+                else if (_targetingDropdown.captionText != null)
+                {
+                    // Non-targeting turret: blank caption instead of a fake mode.
+                    _targetingDropdown.captionText.text = "-";
+                }
+            }
+
+            if (_targetingCycleButton != null)
+                _targetingCycleButton.interactable = usesTargeting;
+
+            if (_targetingModeLabel != null)
+                _targetingModeLabel.text = usesTargeting
+                    ? GetModeLabel(_selectedTurret.CurrentTargetingMode)
+                    : "-";
+        }
+
+        private void OnTargetingDropdownChanged(int index)
+        {
+            if (!ResolveSelectedTurret() || !SelectedTurretUsesTargeting()) return;
+            if (index < 0 || index >= SelectableModes.Length) return;
+
+            _selectedTurret.SetTargetingMode(SelectableModes[index]);
+            if (_targetingModeLabel != null)
+                _targetingModeLabel.text = GetModeLabel(SelectableModes[index]);
+        }
+
+        private void OnTargetingCycleClicked()
+        {
+            if (!ResolveSelectedTurret() || !SelectedTurretUsesTargeting()) return;
+
+            int idx = IndexOfMode(_selectedTurret.CurrentTargetingMode);
+            idx = (idx + 1) % SelectableModes.Length;
+            _selectedTurret.SetTargetingMode(SelectableModes[idx]);
+            RefreshTargetingUI();
+        }
+
+        // Live laser ramp readout: the panel is event-driven, but the ramp multiplier
+        // changes every frame while the beam holds a target, so poll it at a low rate
+        // while a ramping laser is selected. No scene wiring needed — the ramp is
+        // appended to the existing damage row.
+        private float _rampRefreshTimer;
+
+        private void Update()
+        {
+            if (_panel == null || !_panel.activeSelf)
+                return;
+            if (_selectedTurret == null || !_selectedTurret.HasLaserRamp)
+                return;
+
+            _rampRefreshTimer += Time.unscaledDeltaTime;
+            if (_rampRefreshTimer < 0.25f)
+                return;
+            _rampRefreshTimer = 0f;
+            RefreshStats();
+        }
+
+        private static string LaserRampSuffix(TurretController turret)
+        {
+            if (turret == null || !turret.HasLaserRamp)
+                return "";
+
+            return $" <color=#FFA940>x{turret.LaserRampMultiplier:F2}/{turret.LaserRampCapMultiplier:F1}</color>";
+        }
+
         private void RefreshStats()
         {
             var tile = _selectedTurret.DynamicTile;
 
             SetText(_damageText,
-                $"{_selectedTurret.Damage:F1}" + TileMod(tile, TurretStatModifier.StatType.Damage));
+                $"{_selectedTurret.Damage:F1}" + TileMod(tile, TurretStatModifier.StatType.Damage)
+                + LaserRampSuffix(_selectedTurret));
 
             SetText(_attackSpeedText,
                 $"{_selectedTurret.AttackSpeed:F2}/s" + TileMod(tile, TurretStatModifier.StatType.AttackSpeed));

@@ -202,6 +202,18 @@ namespace ETD.Core
         }
 #endif
 
+        /// <summary>
+        /// Editor/dev testing only: fires the normal unlock path for any API name so
+        /// ID mismatches with the Steamworks panel surface as console warnings
+        /// ("GetAchievement failed for ..."). Used by ETDDevToolsWindow.
+        /// </summary>
+        public void DebugUnlock(string apiName)
+        {
+            if (string.IsNullOrWhiteSpace(apiName)) return;
+            Debug.Log($"[Achievement] DebugUnlock requested: {apiName}");
+            Unlock(apiName);
+        }
+
         private void Subscribe()
         {
             EventBus.Subscribe<GameOverEvent>(OnGameOver);
@@ -222,6 +234,29 @@ namespace ETD.Core
             EventBus.Subscribe<MetaCurrencyChangedEvent>(OnMetaChanged);
             EventBus.Subscribe<ChallengeCompletedEvent>(OnChallengeCompleted);
             EventBus.Subscribe<ShopItemPurchasedEvent>(OnShopPurchase);
+            // FIX: chain lightning is DAMAGE, not a status — EnemyStatusAppliedEvent
+            // never fires with ChainLightning, so _hasLightningThisRun / chain-hit
+            // counters could never progress. Count both the batched and single events.
+            EventBus.Subscribe<ChainLightningHitBatchEvent>(OnChainHitBatch);
+            EventBus.Subscribe<ChainLightningHitEvent>(OnChainHitSingle);
+        }
+
+        private void OnChainHitBatch(ChainLightningHitBatchEvent evt) => CountChainHits(evt.Count);
+        private void OnChainHitSingle(ChainLightningHitEvent evt) => CountChainHits(Mathf.Max(1, evt.Count));
+
+        private void CountChainHits(int count)
+        {
+            if (count <= 0) return;
+
+            _hasLightningThisRun = true;
+            _totalChainHits += count;
+            SaveCounter("ach_chain_hits", _totalChainHits);
+
+            if (_totalChainHits >= 1500)
+                Unlock("ACH_LIGHTNING_NETWORK");
+
+            if (_hasBurnThisRun && _hasFrostThisRun && _hasLightningThisRun)
+                Unlock("ACH_ALL_EFFECTS");
         }
 
         private void OnStateChanged(GameStateChangedEvent evt)
@@ -511,6 +546,8 @@ namespace ETD.Core
             if (Instance == this)
                 Instance = null;
 
+            EventBus.Unsubscribe<ChainLightningHitBatchEvent>(OnChainHitBatch);
+            EventBus.Unsubscribe<ChainLightningHitEvent>(OnChainHitSingle);
             EventBus.Unsubscribe<GameOverEvent>(OnGameOver);
             EventBus.Unsubscribe<WaveCompletedEvent>(OnWaveCompleted);
             EventBus.Unsubscribe<TurretPlacedEvent>(OnTurretPlaced);

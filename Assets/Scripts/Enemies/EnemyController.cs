@@ -37,6 +37,24 @@ namespace ETD.Enemies
         private int _pathIndex;
         private Grid.GridSystem _grid;
 
+        // Remaining path distance (world units) from each waypoint to the exit.
+        // Precomputed on path assignment so DistanceToExit stays O(1) per query.
+        private readonly List<float> _remainingToExit = new();
+
+        // Path origin (entry node). Spawn-corridor protection is measured from here.
+        private Vector3 _spawnPosition;
+
+        /// <summary>World position of this enemy's path origin (entry/spawn node).</summary>
+        public Vector3 SpawnPosition => _spawnPosition;
+
+        /// <summary>
+        /// Global spawn-protection radius (squared), set by EnemyManager from its
+        /// serialized _spawnProtectionDistance. While an enemy is within this distance
+        /// of its path origin it is not a valid COMBAT target, so range upgrades can't
+        /// delete enemies inside the spawn corridor / offscreen. 0 disables the rule.
+        /// </summary>
+        public static float SpawnProtectionDistanceSqr;
+
         // Centralized enemy modifiers/statuses.
         private readonly EnemyModifierStack _modifiers = new();
         private int _radarRevealCount;
@@ -57,6 +75,19 @@ namespace ETD.Enemies
         // so every active enemy no longer pays a separate Unity Update callback.
         private Transform _cachedTransform;
         private float _cachedYOffset;
+
+        [Header("Crowd Control")]
+        [Tooltip("Fallback per-enemy freeze immunity (seconds) applied after a freeze ends " +
+                 "when the freeze source does not specify its own. Prevents permanent " +
+                 "freeze-lock from fast re-application.")]
+        [SerializeField] private float _defaultFreezeImmunity = 4f;
+
+        [Tooltip("While an enemy is freeze-immune, an incoming freeze is downgraded to a " +
+                 "slow of this strength for its duration, so Frost still contributes.")]
+        [SerializeField, Range(0f, 1f)] private float _freezeLockoutSlow = 0.5f;
+
+        // Time (Time.time) until which this enemy cannot be re-frozen.
+        private float _freezeImmuneUntil;
 
         public System.Action<EnemyController> OnDeath;
         public System.Action<EnemyController> OnReachedEnd;
@@ -106,8 +137,12 @@ namespace ETD.Enemies
             for (int i = 0; i < gridPath.Count; i++)
                 _worldPath.Add(grid.GridToWorld(gridPath[i]));
 
+            _spawnPosition = _worldPath.Count > 0 ? _worldPath[0] : Vector3.zero;
+            BuildRemainingToExit();
+
             _pathIndex = 0;
             _modifiers.Clear();
+            _freezeImmuneUntil = 0f;
             _statusVFX?.ClearAll();
 
             // Stagger spawn position behind entry
@@ -154,6 +189,8 @@ namespace ETD.Enemies
             for (int i = 0; i < newGridPath.Count; i++)
                 _worldPath.Add(_grid.GridToWorld(newGridPath[i]));
 
+            BuildRemainingToExit();
+
             Vector3 currentPos = (_cachedTransform != null ? _cachedTransform : transform).position;
             int bestIndex = 0;
             float bestDist = float.MaxValue;
@@ -178,6 +215,70 @@ namespace ETD.Enemies
             }
 
             _pathIndex = bestIndex;
+        }
+
+        // =================================================================
+        // PATH PROGRESS & TARGETABILITY (used by turret targeting)
+        // =================================================================
+
+        // remaining[i] = world distance from waypoint i to the exit along the path.
+        private void BuildRemainingToExit()
+        {
+            _remainingToExit.Clear();
+            int count = _worldPath.Count;
+            if (count == 0) return;
+
+            for (int i = 0; i < count; i++)
+                _remainingToExit.Add(0f);
+
+            for (int i = count - 2; i >= 0; i--)
+            {
+                Vector3 a = _worldPath[i];
+                Vector3 b = _worldPath[i + 1];
+                float dx = b.x - a.x, dz = b.z - a.z;
+                _remainingToExit[i] = _remainingToExit[i + 1] + Mathf.Sqrt((dx * dx) + (dz * dz));
+            }
+        }
+
+        /// <summary>
+        /// Approximate world distance still to travel to the exit. Lower = closer to
+        /// the exit ("First"); higher = further from it ("Last"). Works across paths of
+        /// different lengths (e.g. splitter children), unlike raw index or spawn order.
+        /// </summary>
+        public float DistanceToExit
+        {
+            get
+            {
+                int count = _worldPath.Count;
+                if (count == 0) return 0f;
+
+                int idx = _pathIndex;
+                if (idx >= count) return 0f;   // already at/after the exit
+                if (idx < 0) idx = 0;
+
+                Vector3 pos = (_cachedTransform != null ? _cachedTransform : transform).position;
+                Vector3 wp = _worldPath[idx];
+                float dx = wp.x - pos.x, dz = wp.z - pos.z;
+                float toWaypoint = Mathf.Sqrt((dx * dx) + (dz * dz));
+                float after = idx < _remainingToExit.Count ? _remainingToExit[idx] : 0f;
+                return toWaypoint + after;
+            }
+        }
+
+        /// <summary>
+        /// False while the enemy is still inside the spawn-protection radius of its path
+        /// origin. Combat targeting queries and turret validation honor this so range
+        /// upgrades cannot snipe enemies at the spawn/offscreen corridor.
+        /// </summary>
+        public bool IsTargetable
+        {
+            get
+            {
+                if (SpawnProtectionDistanceSqr <= 0f) return true;
+                Vector3 pos = (_cachedTransform != null ? _cachedTransform : transform).position;
+                float dx = pos.x - _spawnPosition.x, dz = pos.z - _spawnPosition.z;
+                return ((dx * dx) + (dz * dz)) >= SpawnProtectionDistanceSqr;
+            }
         }
 
         // =================================================================
@@ -307,6 +408,35 @@ namespace ETD.Enemies
         }
 
         /// <summary>
+        /// Entropy Engine decay. Removes a fraction of CURRENT health, but is strictly
+        /// NON-LETHAL: it never reduces the enemy below the floor
+        /// (max(1, minHpFloorFraction * MaxHealth)). Intentionally spawns NO floating
+        /// damage number — this ticks every frame and would otherwise spam the screen —
+        /// and never triggers death. The caller still counts the removed HP toward
+        /// percent-HP damage tracking. Returns the HP actually removed this call.
+        /// </summary>
+        public float ApplyNonLethalDecay(float fraction, float minHpFloorFraction)
+        {
+            if (IsDead || fraction <= 0f)
+                return 0f;
+
+            float floor = Mathf.Max(1f, MaxHealth * Mathf.Max(0f, minHpFloorFraction));
+            if (CurrentHealth <= floor)
+                return 0f;
+
+            float damage = CurrentHealth * fraction;
+            float newHealth = CurrentHealth - damage;
+            if (newHealth < floor)
+            {
+                damage = CurrentHealth - floor;
+                newHealth = floor;
+            }
+
+            CurrentHealth = newHealth;
+            return damage;
+        }
+
+        /// <summary>
         /// Fast chain-lightning damage path. It applies the normal armor-reduced hit
         /// and optional current-HP percent damage in one enemy state transition, so a
         /// secondary chain target does not pay for two hit VFX/death checks.
@@ -317,7 +447,7 @@ namespace ETD.Enemies
             if (IsDead)
                 return;
 
-            float effectiveDamage = Mathf.Max(damage - Armor, 1f);
+            float effectiveDamage = Mathf.Max(damage - Armor, 1f) * GetExposureMultiplier();
             CurrentHealth -= effectiveDamage;
 
             if (CurrentHealth > 0f && remainingHpPercentDamage > 0f)
@@ -325,6 +455,13 @@ namespace ETD.Enemies
                 float percentDamage = CurrentHealth * Mathf.Max(0f, remainingHpPercentDamage);
                 CurrentHealth -= percentDamage;
                 effectiveDamage += percentDamage;
+
+                // FIX: report the percent-HP portion so the "percent-HP damage"
+                // tracker advances. Previously only the Entropy Engine trait's own
+                // effect published this event, so its unlock (Deal 50,000 percent-HP
+                // damage) could never progress from turret sources like Volt Reaper.
+                if (percentDamage > 0f)
+                    EventBus.Publish(new PercentHPDamageEvent { DamageAmount = percentDamage });
             }
 
             ReportDamageStats(effectiveDamage, DamageNumberKind.Chain, sourceTurretType, sourceTurretId);
@@ -411,8 +548,34 @@ namespace ETD.Enemies
             Die();
         }
 
-        public void ApplyStatus(StatusEffectType type, float value, float duration, int sourceTurretType = -1, int sourceTurretId = -1)
+        public void ApplyStatus(StatusEffectType type, float value, float duration,
+            int sourceTurretType = -1, int sourceTurretId = -1, float freezeImmunitySeconds = -1f,
+            int maxBurnStacks = -1)
         {
+            if (type == StatusEffectType.Burn)
+            {
+                // Burn stacks per applying hit (capped); -1 uses the default cap.
+                _modifiers.ApplyBurnStack(value, duration, maxBurnStacks,
+                    OnStatusApplied, sourceTurretType, sourceTurretId);
+                return;
+            }
+
+            if (type == StatusEffectType.Freeze)
+            {
+                // Per-enemy freeze immunity: prevents permanent freeze-lock when high
+                // attack speed re-applies a short freeze every hit. While immune, the
+                // freeze is downgraded to a slow so Frost still contributes meaningfully.
+                if (Time.time < _freezeImmuneUntil)
+                {
+                    _modifiers.ApplyStatus(StatusEffectType.Slow, _freezeLockoutSlow, duration,
+                        OnStatusApplied, sourceTurretType, sourceTurretId);
+                    return;
+                }
+
+                float immunity = freezeImmunitySeconds >= 0f ? freezeImmunitySeconds : _defaultFreezeImmunity;
+                _freezeImmuneUntil = Time.time + Mathf.Max(0f, duration) + Mathf.Max(0f, immunity);
+            }
+
             _modifiers.ApplyStatus(type, value, duration, OnStatusApplied, sourceTurretType, sourceTurretId);
         }
 
@@ -461,11 +624,26 @@ namespace ETD.Enemies
             _modifiers.Update(deltaTime, ApplyBurnDamage, OnStatusExpired);
         }
 
+        /// <summary>
+        /// Elemental Exposure (Elemental Relay card): while this enemy is inside a
+        /// Support debuff aura, burn ticks and chain damage are amplified. Capped at
+        /// +25% by RunStatModifiers. Cheap: one dictionary TryGet per elemental hit.
+        /// </summary>
+        private float GetExposureMultiplier()
+        {
+            if (!_modifiers.HasSupportAuraSlow)
+                return 1f;
+            if (!ServiceLocator.TryGet<IRunStatModifiers>(out var mods))
+                return 1f;
+            return 1f + mods.GetSupportExposure();
+        }
+
         private void ApplyBurnDamage(float damage, int sourceTurretType, int sourceTurretId)
         {
             if (IsDead || damage <= 0f)
                 return;
 
+            damage *= GetExposureMultiplier();
             CurrentHealth -= damage;
             ReportDamageStats(damage, DamageNumberKind.Burn, sourceTurretType, sourceTurretId);
             PublishDamageNumber(damage, DamageNumberKind.Burn, false, CurrentHealth <= 0f);
@@ -579,6 +757,7 @@ namespace ETD.Enemies
 
         public bool HasStatus(StatusEffectType type) => _modifiers.HasStatus(type);
         public int StatusMask => _modifiers.StatusMask;
+        public int BurnStackCount => _modifiers.BurnStackCount;
 
         public void SetSpeedModifier(float mult)
         {

@@ -78,6 +78,7 @@ namespace ETD.Turrets
             if (turret != null)
             {
                 turret.RestoreSnapshotState(snap.Level, snap.Gold, snap.IsEvolved, snap.EvolutionPath);
+                turret.SetTargetingMode((TargetingMode)snap.TargetingMode);
                 if (!_activeTurrets.Contains(turret))
                     _activeTurrets.Add(turret);
             }
@@ -422,6 +423,25 @@ namespace ETD.Turrets
             }
 
             // Support aura multiplier/radius can be changed by run modifiers.
+            MarkSupportAurasDirty();
+        }
+
+        /// <summary>
+        /// Recalculates every placed turret and refreshes support auras. Called after a
+        /// run is restored, once ALL run state (traits, spec bonuses, permanent bonuses,
+        /// wave, TurretsPlaced, TotalGoldSpent) is in place. Turrets restored mid-load ran
+        /// RecalculateStats while those values were still stale (e.g. wave 0), which made
+        /// wave-scaling (Infinite Scaling) and per-owned-turret traits look disabled after
+        /// resume until the next upgrade or wave.
+        /// </summary>
+        public void RecalculateAllTurretsAndRefreshAuras()
+        {
+            for (int i = 0; i < _activeTurrets.Count; i++)
+            {
+                if (_activeTurrets[i] != null)
+                    _activeTurrets[i].RecalculateStats();
+            }
+
             MarkSupportAurasDirty();
         }
 

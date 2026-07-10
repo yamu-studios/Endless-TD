@@ -53,6 +53,8 @@ namespace ETD.Gameplay
                 XPToNextLevel = Mathf.RoundToInt(run.XPToNextLevel),
                 Score = run.Score,
                 TotalTime = run.TotalTime,                // FIX 4: save time
+                TurretsPlaced = run.TurretsPlaced,        // FIX: preserve trait "per owned turret"
+                TotalGoldSpent = run.TotalGoldSpent,      // FIX: preserve trait "per gold spent"
                 RerollTokens = run.ActiveRerollTokens,
                 ActiveTraitIds = run.ActiveTraitIds?.ToArray()
                               ?? System.Array.Empty<string>(),
@@ -74,14 +76,25 @@ namespace ETD.Gameplay
                 snap.PendingSpecCardIds = cardIds.ToArray();
             }
 
-            // Serialize spec bonuses
+            // Serialize spec bonuses AND their stack counts. Saving stacks is required
+            // so stack-limited cards (and per-cap filtering) behave correctly on resume;
+            // otherwise SpecStacks rebuilds as 1 each and capped cards could reappear.
             var types = new List<int>();
             var values = new List<float>();
+            var stacks = new List<int>();
             if (run.SpecBonuses != null)
                 foreach (var kvp in run.SpecBonuses)
-                { types.Add((int)kvp.Key); values.Add(kvp.Value); }
+                {
+                    types.Add((int)kvp.Key);
+                    values.Add(kvp.Value);
+                    int stackCount = 1;
+                    if (run.SpecStacks != null && run.SpecStacks.TryGetValue(kvp.Key, out int s))
+                        stackCount = s;
+                    stacks.Add(stackCount);
+                }
             snap.SpecBonusTypes = types.ToArray();
             snap.SpecBonuses = values.ToArray();
+            snap.SpecStacks = stacks.ToArray();
 
             // Serialize placed turrets
             var turretSnaps = new List<PlacedTurretSnapshot>();
@@ -98,7 +111,8 @@ namespace ETD.Gameplay
                         Level = tc.Level,
                         IsEvolved = tc.IsEvolved,
                         EvolutionPath = tc.IsEvolved ? tc.EvolutionPath : -1,
-                        Gold = tc.TotalGoldInvested
+                        Gold = tc.TotalGoldInvested,
+                        TargetingMode = (int)tc.CurrentTargetingMode
                     });
                 }
             }
@@ -187,6 +201,8 @@ namespace ETD.Gameplay
             run.XPToNextLevel = snap.XPToNextLevel;
             run.Score = snap.Score;
             run.TotalTime = snap.TotalTime;    // FIX 4: restore time
+            run.CurrentWave = snap.Wave;       // trait wave-scaling (Infinite Scaling) needs the wave before turrets recalc
+            run.TotalGoldSpent = snap.TotalGoldSpent;  // keeps "damage per gold spent" trait correct on resume
             run.ActiveTraitIds = snap.ActiveTraitIds != null
                 ? new List<string>(snap.ActiveTraitIds)
                 : new List<string>();
@@ -202,16 +218,30 @@ namespace ETD.Gameplay
             // but must not affect this continued run.
             run.ActiveRerollTokens = snap.RerollTokens;
 
-            // Restore spec bonuses
+            // Restore spec bonuses AND stack counts directly. We must NOT use AddSpecBonus
+            // here: it would set every stack count to 1, so a card taken to its MaxStacks
+            // (or a crit card at cap) could be offered again after resume. Old saves have
+            // no SpecStacks — fall back to 1 (previous behavior).
             run.SpecBonuses?.Clear();
+            run.SpecStacks?.Clear();
             if (snap.SpecBonusTypes != null && snap.SpecBonuses != null)
                 for (int i = 0; i < snap.SpecBonusTypes.Length && i < snap.SpecBonuses.Length; i++)
-                    run.AddSpecBonus((SpecCardEffectType)snap.SpecBonusTypes[i], snap.SpecBonuses[i]);
+                {
+                    var type = (SpecCardEffectType)snap.SpecBonusTypes[i];
+                    run.SpecBonuses[type] = snap.SpecBonuses[i];
+                    int stackCount = (snap.SpecStacks != null && i < snap.SpecStacks.Length)
+                        ? snap.SpecStacks[i]
+                        : 1;
+                    run.SpecStacks[type] = Mathf.Max(1, stackCount);
+                }
 
             // FIX 3: Restore tile specialties EXACTLY â skip ApplyRandomSpecialties
             RestoreTileSpecialties(snap.TileSpecialties);
 
-            // Restore turrets
+            // Restore turrets. PlaceAndRestoreTurret does NOT raise TurretPlacedEvent,
+            // so it never increments run.TurretsPlaced — that is why resumed runs
+            // showed "damage per owned turret" as 0%. Restore the counter explicitly.
+            int restoredTurretCount = 0;
             if (snap.PlacedTurrets != null && _database != null && _turretManager != null)
             {
                 foreach (var ts in snap.PlacedTurrets)
@@ -219,13 +249,24 @@ namespace ETD.Gameplay
                     var data = _database.GetTurret(ts.TurretDataId);
                     if (data == null) continue;
                     var pos = new Vector2Int(ts.GridX, ts.GridY);
-                    _turretManager.PlaceAndRestoreTurret(data, pos, ts);
+                    if (_turretManager.PlaceAndRestoreTurret(data, pos, ts) != null)
+                        restoredTurretCount++;
                 }
             }
+
+            // Prefer the saved cumulative count; fall back to the number of turrets
+            // actually restored (covers snapshots saved before this field existed).
+            run.TurretsPlaced = Mathf.Max(snap.TurretsPlaced, restoredTurretCount);
 
             // Set wave counter (SetWave does wave-1 so StartNextWave lands on correct wave)
             _waveManager?.SetWave(snap.Wave);
             _waveManager?.StartPrepPhase();
+
+            // Everything (traits, spec bonuses, permanent bonuses, wave, TurretsPlaced,
+            // TotalGoldSpent) is now restored. Force a full turret recalc + aura refresh so
+            // wave-scaling and per-owned-turret traits are correct immediately, instead of
+            // appearing "off" until the next upgrade/wave.
+            _turretManager?.RecalculateAllTurretsAndRefreshAuras();
 
             // FIX 2: If level-up was pending, restore and re-show spec cards
             if (snap.IsLevelUpPending && snap.PendingSpecCardIds != null

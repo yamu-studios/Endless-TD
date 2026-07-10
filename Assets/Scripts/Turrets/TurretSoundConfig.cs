@@ -73,16 +73,16 @@ namespace ETD.Turrets
         {
             AudioManager audio = AudioManager.Instance;
             if (audio == null || ShootSounds == null || ShootSounds.Length == 0) return;
-            //audio.PlaySFXRandom(ShootSounds, pos,
-            //    SoundCategory.TurretShoot, 1f, PitchMin, PitchMax);
+            audio.PlaySFXRandom(ShootSounds, pos,
+                SoundCategory.TurretShoot, 1f, PitchMin, PitchMax);
         }
 
         public void PlayHit(Vector3 pos)
         {
             AudioManager audio = AudioManager.Instance;
             if (audio == null || HitSounds == null || HitSounds.Length == 0) return;
-           // audio.PlaySFXRandom(HitSounds, pos,
-           //     SoundCategory.ProjectileHit, 0.8f, PitchMin, PitchMax);
+            audio.PlaySFXRandom(HitSounds, pos,
+                SoundCategory.ProjectileHit, 0.8f, PitchMin, PitchMax);
         }
 
         public void PlayPlace()

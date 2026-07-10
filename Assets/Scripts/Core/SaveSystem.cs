@@ -47,7 +47,11 @@ namespace ETD.Core
 
         // === VIDEO ===
         public bool VSyncEnabled = true;
-        public int QualityLevel = 2;      // index into QualitySettings.names
+        // First-time players start on the HIGHEST tier (index 0 = High) for the
+        // best first impression; this default only applies when there is no save
+        // file yet. Existing players keep whatever they last chose. Players on
+        // weaker hardware can drop to Medium/Low in Settings.
+        public int QualityLevel = 0;      // index into QualitySettings.names (0=High,1=Medium,2=Low)
         public int ResolutionIndex = -1;     // legacy fallback only; size fields below are preferred
         public int ResolutionWidth = 0;      // 0 = native/default
         public int ResolutionHeight = 0;     // 0 = native/default
@@ -115,7 +119,13 @@ namespace ETD.Core
         public float[] ActivePermanentBonuses;
         public float[] SpecBonuses;        // serialized as flat array of (int type, float value) pairs
         public int[] SpecBonusTypes;
+        public int[] SpecStacks;           // parallel to SpecBonusTypes; how many of each card were taken (null in old saves)
         public PlacedTurretSnapshot[] PlacedTurrets;
+        // Cumulative counters restored so run-dynamic traits (e.g. "damage per
+        // owned turret", "damage per gold spent") keep their value across
+        // leave/continue instead of resetting to zero.
+        public int TurretsPlaced;
+        public int TotalGoldSpent;
         public float TotalTime;
         public bool IsLevelUpPending;
         public string[] PendingSpecCardIds;   // IDs of the 3 presented spec cards
@@ -141,6 +151,7 @@ namespace ETD.Core
         public bool IsEvolved;
         public int EvolutionPath;  // 0=A, 1=B, -1=not evolved
         public int Gold;           // gold invested
+        public int TargetingMode;  // cast to ETD.Data.TargetingMode; 0 = First (old saves)
     }
 
     public static class SaveSystem
