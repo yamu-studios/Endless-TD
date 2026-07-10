@@ -50,7 +50,6 @@ namespace ETD.Core
         private bool _hasFrostThisRun;
         private bool _hasLightningThisRun;
         private int _peakLivesLost;
-        private bool _firstTraitUsed;
         private bool _firstSpecCard;
         private bool _firstEvolution;
         private float _runLaserSeconds;
@@ -271,14 +270,11 @@ namespace ETD.Core
             {
                 var save = SaveSystem.Load();
 
+                // NOTE: ACH_FIRST_TRAIT is "Strategic Mind" on Steam and is unlocked by
+                // placing all 7 turret types in one run (see OnTurretPlaced) — it is
+                // deliberately NOT unlocked by trait selection anymore.
                 if (save.SelectedTraitIds != null && save.SelectedTraitIds.Length > 0)
                 {
-                    if (!_firstTraitUsed)
-                    {
-                        Unlock("ACH_FIRST_TRAIT");
-                        _firstTraitUsed = true;
-                    }
-
                     int slots = save.TraitSlotCount;
                     if (save.SelectedTraitIds.Length >= slots)
                         Unlock("ACH_FULL_TRAIT_LOADOUT");
@@ -320,13 +316,16 @@ namespace ETD.Core
             if (_totalTurretsBuilt >= 100)
                 Unlock("ACH_100_TURRETS_TOTAL");
 
-            // Strategic Mind: place every turret type (all 7) in a single run.
+            // Strategic Mind (Steam API name: ACH_FIRST_TRAIT — confirmed by user):
+            // place every turret type (all 7) in a single run. The mask is persisted
+            // so save/resume keeps progress; it resets with the other run counters.
             // TurretType < 0 means the publisher couldn't resolve a type (debug events).
             if (evt.TurretType >= 0 && evt.TurretType < 7)
             {
                 _runTurretTypesMask |= 1 << evt.TurretType;
+                SaveCounter("ach_run_turret_types", _runTurretTypesMask);
                 if (_runTurretTypesMask == AllTurretTypesMask)
-                    Unlock("ACH_STRATEGIC_MIND");
+                    Unlock("ACH_FIRST_TRAIT");
             }
         }
 
@@ -509,6 +508,7 @@ namespace ETD.Core
         {
             _runTurretsBuilt = 0;
             _runTurretTypesMask = 0;
+            SaveCounter("ach_run_turret_types", 0);
             _runUpgrades = 0;
             _hasBurnThisRun = false;
             _hasFrostThisRun = false;
@@ -531,6 +531,9 @@ namespace ETD.Core
             _totalMeta = LoadCounterF("ach_total_meta");
             _totalShopBuys = LoadCounter("ach_total_shop_buys");
             _totalChallenges = LoadCounter("ach_total_challenges");
+            // Run-scoped Strategic Mind progress survives quit/resume: snapshot restore
+            // re-places turrets without placement events, so this is the only record.
+            _runTurretTypesMask = LoadCounter("ach_run_turret_types");
         }
 
         private static int LoadCounter(string key)
