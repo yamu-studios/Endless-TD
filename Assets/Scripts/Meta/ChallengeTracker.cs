@@ -75,11 +75,21 @@ namespace ETD.Meta
         // Laser time on target
         private float _laserTimeAccumulated = 0f;
 
-        private const int ElementFamilyInferno = 1 << 0;
-        private const int ElementFamilyFrost = 1 << 1;
-        private const int ElementFamilyLightning = 1 << 2;
+        // Turret-type families (formerly "element" families). Bit positions for
+        // Inferno/Frost/Lightning are unchanged from the old element system since
+        // this mask is transient per-run state, not persisted. Basic and Laser were
+        // added when the "3 elements" mechanic was widened to "3 turret types" —
+        // add one more bit here per damage-dealing turret type introduced later.
+        private const int TurretFamilyInferno = 1 << 0;
+        private const int TurretFamilyFrost = 1 << 1;
+        private const int TurretFamilyLightning = 1 << 2;
+        private const int TurretFamilyBasic = 1 << 3;
+        private const int TurretFamilyLaser = 1 << 4;
+        private const int TurretFamilyVoid = 1 << 5;
+        private const int TurretFamilyToxin = 1 << 6;
+        private const int TurretFamilyRailgun = 1 << 7;
 
-        // enemy id -> bitmask of elemental families currently seen on that enemy.
+        // enemy id -> bitmask of turret-type families currently seen on that enemy.
         // A bitmask avoids allocating one HashSet<string> per enemy during dense
         // chain-lightning frames.
         private readonly Dictionary<int, int> _elementFamilyMaskByEnemy = new();
@@ -759,12 +769,32 @@ namespace ETD.Meta
                 switch (status)
                 {
                     case StatusEffectType.Burn:
-                        mask &= ~ElementFamilyInferno;
+                        mask &= ~TurretFamilyInferno;
                         break;
 
                     case StatusEffectType.Slow:
                     case StatusEffectType.Freeze:
-                        mask &= ~ElementFamilyFrost;
+                        mask &= ~TurretFamilyFrost;
+                        break;
+
+                    case StatusEffectType.ArmorBreak:
+                        mask &= ~TurretFamilyBasic;
+                        break;
+
+                    case StatusEffectType.HPPercentReduce:
+                        mask &= ~TurretFamilyLaser;
+                        break;
+
+                    case StatusEffectType.Weaken:
+                        mask &= ~TurretFamilyVoid;
+                        break;
+
+                    case StatusEffectType.Poison:
+                        mask &= ~TurretFamilyToxin;
+                        break;
+
+                    case StatusEffectType.Expose:
+                        mask &= ~TurretFamilyRailgun;
                         break;
                 }
 
@@ -1206,9 +1236,9 @@ namespace ETD.Meta
         {
             AddProgress(ChallengeConditionType.ChainHits, evt.Count);
 
-            TrackElementalistFamilyBit(ElementFamilyLightning);
+            TrackElementalistFamilyBit(TurretFamilyLightning);
             if (!_comboEffectsComplete)
-                TrackComboFamilyOnEnemyBit(evt.EnemyId, ElementFamilyLightning);
+                TrackComboFamilyOnEnemyBit(evt.EnemyId, TurretFamilyLightning);
 
             CheckChainChallengesThrottled();
         }
@@ -1227,14 +1257,14 @@ namespace ETD.Meta
             Profiler.EndSample();
 
             Profiler.BeginSample("ChallengeTracker.ChainBatch.02.Elementalist");
-            TrackElementalistFamilyBit(ElementFamilyLightning);
+            TrackElementalistFamilyBit(TurretFamilyLightning);
             Profiler.EndSample();
 
             if (!_comboEffectsComplete && enemyIds != null && enemyIds.Count > 0)
             {
                 Profiler.BeginSample("ChallengeTracker.ChainBatch.03.ComboEnemyIds");
                 for (int i = 0; i < enemyIds.Count; i++)
-                    TrackComboFamilyOnEnemyBit(enemyIds[i], ElementFamilyLightning);
+                    TrackComboFamilyOnEnemyBit(enemyIds[i], TurretFamilyLightning);
                 Profiler.EndSample();
             }
 
@@ -1367,9 +1397,14 @@ namespace ETD.Meta
         {
             return family switch
             {
-                "inferno" => ElementFamilyInferno,
-                "frost" => ElementFamilyFrost,
-                "lightning" => ElementFamilyLightning,
+                "inferno" => TurretFamilyInferno,
+                "frost" => TurretFamilyFrost,
+                "lightning" => TurretFamilyLightning,
+                "basic" => TurretFamilyBasic,
+                "laser" => TurretFamilyLaser,
+                "void" => TurretFamilyVoid,
+                "toxin" => TurretFamilyToxin,
+                "railgun" => TurretFamilyRailgun,
                 _ => 0
             };
         }
@@ -1407,9 +1442,14 @@ namespace ETD.Meta
         private static int CountElementBits(int mask)
         {
             int count = 0;
-            if ((mask & ElementFamilyInferno) != 0) count++;
-            if ((mask & ElementFamilyFrost) != 0) count++;
-            if ((mask & ElementFamilyLightning) != 0) count++;
+            if ((mask & TurretFamilyInferno) != 0) count++;
+            if ((mask & TurretFamilyFrost) != 0) count++;
+            if ((mask & TurretFamilyLightning) != 0) count++;
+            if ((mask & TurretFamilyBasic) != 0) count++;
+            if ((mask & TurretFamilyLaser) != 0) count++;
+            if ((mask & TurretFamilyVoid) != 0) count++;
+            if ((mask & TurretFamilyToxin) != 0) count++;
+            if ((mask & TurretFamilyRailgun) != 0) count++;
             return count;
         }
 
@@ -1418,20 +1458,45 @@ namespace ETD.Meta
             switch (status)
             {
                 case StatusEffectType.Burn:
-                    TrackElementalistFamilyBit(ElementFamilyInferno);
-                    TrackComboFamilyOnEnemyBit(enemyId, ElementFamilyInferno);
+                    TrackElementalistFamilyBit(TurretFamilyInferno);
+                    TrackComboFamilyOnEnemyBit(enemyId, TurretFamilyInferno);
                     break;
 
                 case StatusEffectType.Slow:
-                    TrackElementalistFamilyBit(ElementFamilyFrost);
-                    TrackComboFamilyOnEnemyBit(enemyId, ElementFamilyFrost);
+                    TrackElementalistFamilyBit(TurretFamilyFrost);
+                    TrackComboFamilyOnEnemyBit(enemyId, TurretFamilyFrost);
                     break;
 
                 // Keep this if you also have Freeze later.
                 // Frost turret family should count whether the actual CC is Slow or Freeze.
                 case StatusEffectType.Freeze:
-                    TrackElementalistFamilyBit(ElementFamilyFrost);
-                    TrackComboFamilyOnEnemyBit(enemyId, ElementFamilyFrost);
+                    TrackElementalistFamilyBit(TurretFamilyFrost);
+                    TrackComboFamilyOnEnemyBit(enemyId, TurretFamilyFrost);
+                    break;
+
+                case StatusEffectType.ArmorBreak:
+                    TrackElementalistFamilyBit(TurretFamilyBasic);
+                    TrackComboFamilyOnEnemyBit(enemyId, TurretFamilyBasic);
+                    break;
+
+                case StatusEffectType.HPPercentReduce:
+                    TrackElementalistFamilyBit(TurretFamilyLaser);
+                    TrackComboFamilyOnEnemyBit(enemyId, TurretFamilyLaser);
+                    break;
+
+                case StatusEffectType.Weaken:
+                    TrackElementalistFamilyBit(TurretFamilyVoid);
+                    TrackComboFamilyOnEnemyBit(enemyId, TurretFamilyVoid);
+                    break;
+
+                case StatusEffectType.Poison:
+                    TrackElementalistFamilyBit(TurretFamilyToxin);
+                    TrackComboFamilyOnEnemyBit(enemyId, TurretFamilyToxin);
+                    break;
+
+                case StatusEffectType.Expose:
+                    TrackElementalistFamilyBit(TurretFamilyRailgun);
+                    TrackComboFamilyOnEnemyBit(enemyId, TurretFamilyRailgun);
                     break;
             }
         }

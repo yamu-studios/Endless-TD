@@ -40,8 +40,15 @@ namespace ETD.Gameplay
         private SpecCardPityState _specCardPityState;
         private SpecCardOfferGenerator _specCardOfferGenerator;
 
-        private SpecCardData[] _currentSpecOptions;
-        public SpecCardData[] CurrentSpecOptions => _currentSpecOptions;
+        // v1.0 Phase 4: non-blocking spec-card offers. Leveling up no longer pauses
+        // the run (see [[etd-v1-full-release]]) — each level-up's offer is appended
+        // here instead of overwriting a single slot, so players can keep playing and
+        // resolve picks whenever they want, in order, without losing offers from
+        // back-to-back level-ups.
+        private readonly List<SpecCardData[]> _pendingOffers = new();
+        public SpecCardData[] CurrentSpecOptions => _pendingOffers.Count > 0 ? _pendingOffers[0] : null;
+        public int PendingOfferCount => _pendingOffers.Count;
+        public IReadOnlyList<SpecCardData[]> PendingOffers => _pendingOffers;
 
         private bool _gameOverTriggered;
 
@@ -110,6 +117,10 @@ namespace ETD.Gameplay
             // Initialize trait manager with selected traits
             var traitManager = gameObject.AddComponent<Traits.TraitManager>();
             traitManager.Initialize(_database, _runData.ActiveTraitIds);
+
+            // Initialize the v1.0 active spell system with the player's planning-tab selection.
+            var spellManager = gameObject.AddComponent<SpellManager>();
+            spellManager.Initialize(_database, save);
 
             // Initialize stat modifiers (centralized trait/spec/wave scaling)
             _statModifiers = gameObject.AddComponent<RunStatModifiers>();
@@ -358,14 +369,37 @@ namespace ETD.Gameplay
         //        _currentSpecOptions[i] = available[idx];
         //    }
         //}
+        /// <summary>
+        /// Leveling up no longer pauses the run (see [[etd-v1-full-release]]) — the
+        /// offer is appended to the queue and the player resolves it whenever they
+        /// open the spec-card picker, even hours later.
+        /// </summary>
         private void PresentSpecCards()
         {
-            GameManager.Instance.SetState(GameState.LevelUp);
+            var options = GenerateSpecCardOffer();
+            if (options != null)
+                _pendingOffers.Add(options);
+        }
 
-            _currentSpecOptions = new SpecCardData[GameConstants.SPEC_CARDS_PER_LEVELUP];
+        /// <summary>
+        /// Rerolls (free token or paid) replace the offer currently being viewed —
+        /// the front of the queue — rather than appending a new one to the back.
+        /// </summary>
+        private void RerollCurrentOffer()
+        {
+            var options = GenerateSpecCardOffer();
+            if (options == null) return;
 
+            if (_pendingOffers.Count > 0)
+                _pendingOffers[0] = options;
+            else
+                _pendingOffers.Add(options);
+        }
+
+        private SpecCardData[] GenerateSpecCardOffer()
+        {
             var allCards = _database.SpecCards;
-            if (allCards == null || allCards.Length == 0) return;
+            if (allCards == null || allCards.Length == 0) return null;
 
             // Filter to unlocked cards only
             var available = new List<SpecCardData>();
@@ -380,12 +414,12 @@ namespace ETD.Gameplay
                 available.Add(card);
             }
 
-            if (available.Count == 0) return;
+            if (available.Count == 0) return null;
 
             if (_specCardOfferGenerator == null)
             {
                 Debug.LogError("[SpecCards] SpecCardOfferGenerator is missing.");
-                return;
+                return null;
             }
 
             float gradeBonus = _statModifiers != null ? _statModifiers.GetGradeBonus() : 0f;
@@ -400,19 +434,24 @@ namespace ETD.Gameplay
                 rng
             );
 
-            for (int i = 0; i < _currentSpecOptions.Length; i++)
+            var options = new SpecCardData[GameConstants.SPEC_CARDS_PER_LEVELUP];
+            for (int i = 0; i < options.Length; i++)
             {
-                _currentSpecOptions[i] = i < offer.Count ? offer[i] : null;
+                options[i] = i < offer.Count ? offer[i] : null;
             }
+
+            return options;
         }
 
         /// <summary>
-        /// Directly sets spec card options without generating new ones.
-        /// Used when restoring a saved run where cards were already presented.
+        /// Restores one previously-offered (but unresolved) spec card offer onto the
+        /// pending queue without generating a new one. Used when restoring a saved
+        /// run — call once per queued offer, in original order.
         /// </summary>
         public void SetSpecCardOptions(SpecCardData[] options)
         {
-            _currentSpecOptions = options;
+            if (options != null)
+                _pendingOffers.Add(options);
         }
 
 
@@ -659,11 +698,11 @@ namespace ETD.Gameplay
 
         private void OnSpecCardChosen(SpecCardChosenEvent evt)
         {
-            if (_currentSpecOptions == null || evt.CardIndex < 0
-                || evt.CardIndex >= _currentSpecOptions.Length)
+            var options = CurrentSpecOptions; // front of the pending-offer queue
+            if (options == null || evt.CardIndex < 0 || evt.CardIndex >= options.Length)
                 return;
 
-            var card = _currentSpecOptions[evt.CardIndex];
+            var card = options[evt.CardIndex];
             if (card == null)
                 return;
 
@@ -690,22 +729,26 @@ namespace ETD.Gameplay
                 });
             }
 
-            _currentSpecOptions = null;
+            // Pop the resolved offer; any further queued offers (from back-to-back
+            // level-ups) remain and CurrentSpecOptions now exposes the next one.
+            if (_pendingOffers.Count > 0)
+                _pendingOffers.RemoveAt(0);
 
-            // Resume game
-            if(_waveManager.IsSpawning || _enemyManager.ActiveCount > 0)
+            // v1.0: leveling up no longer pauses the run, so there's usually nothing
+            // to "resume" here. Only force a state transition if something had
+            // explicitly paused for this choice (e.g. a picker UI that chose to enter
+            // GameState.LevelUp while open) — otherwise leave the run's state alone.
+            if (GameManager.Instance != null && GameManager.Instance.CurrentState == GameState.LevelUp)
             {
-                GameManager.Instance.SetState(
-                   GameState.WaveActive
-               );
-            }
-            else
-            {
-                _waveManager.StartPrepPhase();
-                GameManager.Instance.SetState(
-                 GameState.Preparation
-             );
-               
+                if (_waveManager.IsSpawning || _enemyManager.ActiveCount > 0)
+                {
+                    GameManager.Instance.SetState(GameState.WaveActive);
+                }
+                else
+                {
+                    _waveManager.StartPrepPhase();
+                    GameManager.Instance.SetState(GameState.Preparation);
+                }
             }
 
             EventBus.Publish(new SpecCardChosenAfterEvent { });
@@ -790,7 +833,7 @@ namespace ETD.Gameplay
         /// </summary>
         public void RerollSpecCards()
         {
-            PresentSpecCards();
+            RerollCurrentOffer();
         }
 
         // =================================================================
@@ -842,7 +885,7 @@ namespace ETD.Gameplay
             });
 
             _paidRerollsThisOffer++;
-            PresentSpecCards();
+            RerollCurrentOffer();
             return true;
         }
 

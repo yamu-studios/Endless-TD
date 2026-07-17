@@ -260,8 +260,22 @@ namespace ETD.Enemies
 
             if (_moveSpeedMultipliers.Count > 0)
             {
+                float strongestEnemyBufferMultiplier = 1f;
                 foreach (var kvp in _moveSpeedMultipliers)
-                    multiplier *= Mathf.Max(0f, kvp.Value.Value);
+                {
+                    float sourceMultiplier = Mathf.Max(0f, kvp.Value.Value);
+
+                    // Multiple Buffer enemies can overlap in a dense wave. Their
+                    // auras are alternatives, not compounding buffs: multiplying
+                    // every source made packs accelerate exponentially until their
+                    // individual timed entries expired.
+                    if (kvp.Key.StartsWith("enemy_buffer_", StringComparison.Ordinal))
+                        strongestEnemyBufferMultiplier = Mathf.Max(strongestEnemyBufferMultiplier, sourceMultiplier);
+                    else
+                        multiplier *= sourceMultiplier;
+                }
+
+                multiplier *= strongestEnemyBufferMultiplier;
             }
 
             float strongestSlow = _supportAuraSlow;

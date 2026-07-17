@@ -162,7 +162,7 @@ namespace ETD.UI
             SetText(_tierText, FormatPair("ui_tier", "Tier", LocalizeTier(_selected.Tier)));
             SetText(_typeText, FormatPair("ui_type", "Type", LocalizeType(data.Type)));
             // v8: these text fields now show only the value. The row/icon already communicates the stat.
-            SetText(_armorText, _selected.Armor.ToString("0.#"));
+            SetText(_armorText, _selected.Armor.ToString("0%"));
             SetText(_speedText, _selected.MoveSpeed.ToString("0.##"));
             // Show the wave/tier-scaled rewards this kill will actually pay,
             // not the base asset values.

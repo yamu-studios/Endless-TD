@@ -277,7 +277,8 @@ namespace ETD.Gameplay
 
         public float GetGradeBonus()
         {
-            return GetTraitBonus(TraitEffectType.GradeBonus);
+            return GetTraitBonus(TraitEffectType.GradeBonus)
+                + _runManager.RunData.GetSpecBonus(SpecCardEffectType.Luck);
         }
 
         // =================================================================
@@ -370,6 +371,23 @@ namespace ETD.Gameplay
                 _runManager.RunData.GetSpecBonus(SpecCardEffectType.SupportExposure), 0f, 0.25f);
         }
 
+        // v1.0 mitigation pipeline (see [[etd-v1-full-release]] Phase 1): ignores this
+        // many percentage points of the enemy's Armor / turret-type affinity
+        // resistance respectively, before the remaining resistance is applied.
+        // Clamped to 0.9 so mitigation can never be fully negated to guaranteed
+        // pierce-through (mirrors the 0.9 clamp on Armor/affinity themselves).
+        public float GetArmorPierce()
+        {
+            return Mathf.Clamp(
+                _runManager.RunData.GetSpecBonus(SpecCardEffectType.ArmorPierce), 0f, 0.9f);
+        }
+
+        public float GetAffinityPierce()
+        {
+            return Mathf.Clamp(
+                _runManager.RunData.GetSpecBonus(SpecCardEffectType.AffinityPierce), 0f, 0.9f);
+        }
+
         private float GetWaveScalingMultiplier(float perWaveBonus, int wave)
         {
             if (perWaveBonus <= 0f || wave <= 0)
@@ -435,7 +453,43 @@ namespace ETD.Gameplay
         private void UpdateTimedBuffs()
         {
             if (_goldSurgeTimer > 0) _goldSurgeTimer -= Time.deltaTime;
-            if (_overclockTimer > 0) _overclockTimer -= Time.deltaTime;
+
+            if (_overclockTimer > 0)
+            {
+                _overclockTimer -= Time.deltaTime;
+                // Attack speed is baked into each turret's cached stats
+                // (RecalculateStats), unlike GoldMultiplier which is read live per
+                // kill — so expiry needs an explicit recalc to actually revert turrets.
+                if (_overclockTimer <= 0f)
+                    RefreshTurretStats();
+            }
+        }
+
+        // =================================================================
+        // v1.0 ACTIVE SPELLS (Overclock / Gold Surge) — see [[etd-v1-full-release]]
+        // Phase 2. These fields/getters already existed pre-Phase-2 with no caller
+        // ever setting them (SpellManager.TryCast is the first). Public setters here
+        // are the only new surface; consumption in GetGlobalAttackSpeedMultiplier/
+        // GetGoldMultiplier above was already wired.
+        // =================================================================
+
+        public void ApplyOverclock(float bonus, float duration)
+        {
+            _overclockBonus = Mathf.Max(0f, bonus);
+            _overclockTimer = Mathf.Max(0f, duration);
+            RefreshTurretStats();
+        }
+
+        public void ApplyGoldSurge(float multiplier, float duration)
+        {
+            _goldSurgeMultiplier = Mathf.Max(0f, multiplier);
+            _goldSurgeTimer = Mathf.Max(0f, duration);
+        }
+
+        private void RefreshTurretStats()
+        {
+            if (ServiceLocator.TryGet<ETD.Turrets.TurretManager>(out var tm))
+                tm.RecalculateAllTurretsAndRefreshAuras();
         }
 
 

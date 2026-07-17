@@ -37,12 +37,6 @@ namespace ETD.Enemies
         [SerializeField] private float _spatialRebuildInterval = 0.033f;
 
         [Header("Spawn Corridor Protection")]
-        [Tooltip("Enemies within this world-distance of their spawn/entry node cannot be " +
-                 "targeted by turret combat, so range upgrades can't delete enemies at the " +
-                 "offscreen spawn corridor. 0 disables. Radar reveal is unaffected. Keep " +
-                 "this small (only cover the spawn area).")]
-        [SerializeField] private float _spawnProtectionDistance = 2f;
-
         private readonly Dictionary<long, List<EnemyController>> _spatialBuckets = new(256);
         private readonly List<long> _usedSpatialKeys = new(256);
         private int _spatialRebuildFrame = -1;
@@ -86,10 +80,6 @@ namespace ETD.Enemies
             _grid = grid;
             _pathfinder = pathfinder;
             _nextInstanceId = 0;
-
-            // Publish the spawn-protection radius to the (static) enemy check.
-            float d = Mathf.Max(0f, _spawnProtectionDistance);
-            EnemyController.SpawnProtectionDistanceSqr = d * d;
 
             ServiceLocator.Register(this);
 
@@ -152,10 +142,15 @@ namespace ETD.Enemies
                 pool.Release(enemy);
                 return null;
             }
-            // Calculate spawn offset: how far behind entry this enemy starts
-            // Based on accumulated delay × average speed
+            // Calculate spawn offset: how far behind entry this enemy starts.
+            // The coroutine already waits `spawnDelay` in real time before this
+            // spawn, during which the previous enemy walked that same distance
+            // clear of the entry — so only this spawn's own delay is needed here.
+            // Accumulating across the whole wave (as before) double-counted that
+            // spacing, pushing late-wave enemies far behind the entry and roughly
+            // doubling how long a wave took to fully spawn and clear.
             float avgSpeed = data.GetScaledSpeed(waveNumber);
-            _waveSpawnOffset += spawnDelay * avgSpeed;
+            _waveSpawnOffset = spawnDelay * avgSpeed;
 
             enemy.Initialize(data, tier, waveNumber, gridPath, _grid, _waveSpawnOffset,hasPos,fixedPos);
             enemy.OnDeath = OnEnemyDeath;
@@ -322,7 +317,8 @@ namespace ETD.Enemies
             float radius,
             List<EnemyController> results,
             int maxResults,
-            EnemyController exclude = null)
+            EnemyController exclude = null,
+            bool prioritizeClosestToExit = false)
         {
             Profiler.BeginSample("EnemyManager.GetEnemiesInRangeLimited");
             results.Clear();
@@ -363,13 +359,23 @@ namespace ETD.Enemies
                             continue;
 
                         results.Add(enemy);
-                        if (results.Count >= maxResults)
+                        if (!prioritizeClosestToExit && results.Count >= maxResults)
                         {
                             Profiler.EndSample();
                             return;
                         }
                     }
                 }
+            }
+
+            // Dense packs can exceed maxResults within this radius. Rather than keep
+            // an arbitrary spatial-bucket-order subset (which let whole sub-groups
+            // dodge the effect entirely), keep the enemies furthest along the path —
+            // they're closest to costing the player a life, so they take priority.
+            if (prioritizeClosestToExit && results.Count > maxResults)
+            {
+                results.Sort((a, b) => a.DistanceToExit.CompareTo(b.DistanceToExit));
+                results.RemoveRange(maxResults, results.Count - maxResults);
             }
 
             Profiler.EndSample();
@@ -503,7 +509,6 @@ namespace ETD.Enemies
                         EnemyController enemy = bucket[i];
                         if (enemy == null || enemy.IsDead) continue;
                         if (enemy.IsStealth && !enemy.IsRevealed && !canTargetStealth) continue;
-                        if (!enemy.IsTargetable) continue;
 
                         Vector3 enemyPosition = enemy.transform.position;
                         float dx = enemyPosition.x - center.x;
@@ -566,7 +571,6 @@ namespace ETD.Enemies
                         EnemyController enemy = bucket[i];
                         if (enemy == null || enemy.IsDead) continue;
                         if (enemy.IsStealth && !enemy.IsRevealed && !canTargetStealth) continue;
-                        if (!enemy.IsTargetable) continue;
 
                         Vector3 enemyPosition = enemy.transform.position;
                         float dx = enemyPosition.x - center.x;

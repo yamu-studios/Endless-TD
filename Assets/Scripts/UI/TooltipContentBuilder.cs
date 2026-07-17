@@ -138,7 +138,7 @@ namespace ETD.UI
             {
                 Title = data.DisplayName,
                 Body = GetEnemyTypeDescription(data.Type),
-                Stats = $"HP: {data.MaxHealth}\nSpeed: {data.MoveSpeed}\nArmor: {data.Armor}",
+                Stats = $"HP: {data.MaxHealth}\nSpeed: {data.MoveSpeed}\nArmor: {data.Armor:0%}",
                 TitleColor = new Color(1f, 0.4f, 0.4f),
                 HasTitleColor = true
             };

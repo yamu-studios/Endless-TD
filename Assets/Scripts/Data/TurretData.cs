@@ -14,7 +14,12 @@ namespace ETD.Data
         Inferno,
         Lightning,
         Support,
-        Radar
+        Radar,
+
+        // v1.0 Phase 3 - appended, do not reorder. See [[etd-v1-full-release]].
+        Void,
+        Toxin,
+        Railgun
     }
 
     public enum TargetingMode
@@ -75,6 +80,25 @@ namespace ETD.Data
         public float SlowPercent = 0.25f;
         public float SlowDuration = 1.5f;
 
+        [Header("Basic")]
+        [Tooltip("Basic's signature status: reduces the target's armor by this fraction for ArmorBreakDuration.")]
+        public float ArmorBreakPercent = 0.2f;
+        public float ArmorBreakDuration = 2f;
+
+        [Header("Void")]
+        [Tooltip("Void's signature status: reduces the target's effective armor by this fraction for WeakenDuration (see EnemyController.ApplyMitigation).")]
+        public float WeakenPercent = 0.25f;
+        public float WeakenDuration = 3f;
+
+        [Header("Toxin")]
+        [Tooltip("Toxin's signature identity: every hit deals this fraction of the target's CURRENT HP as bonus PURE damage (bypasses Armor and affinity entirely via TakePureDamage, unlike HitCurrentHPPercent which goes through normal mitigation).")]
+        public float ToxinPurePercent = 0.02f;
+
+        [Header("Railgun")]
+        [Tooltip("Railgun's signature status: increases ALL mitigated damage the target takes by this fraction for ExposeDuration (see EnemyController.ApplyMitigation).")]
+        public float ExposePercent = 0.2f;
+        public float ExposeDuration = 3f;
+
         [Header("Inferno")]
         public float BurnDPS = 6f;
         public float BurnDuration = 3f;
@@ -111,6 +135,10 @@ namespace ETD.Data
         public int EvolveLevel = 15;
         public TurretEvolutionData PathA;
         public TurretEvolutionData PathB;
+
+        [Header("Second Evolution Tier (Lv 25, shared - converges from either Path A or B)")]
+        public int EvolveLevel2 = 25;
+        public TurretEvolutionData Tier2;
 
         /// <summary>
         /// Attacks per second (inverse of interval)
@@ -183,6 +211,20 @@ namespace ETD.Data
         public bool DebuffEnemySpeed;          // TU006B: -18% enemy speed
         public float EnemySlowAura = 0.18f;
 
-
+        [Header("Tier 2 (Lv 25, shared, see [[etd-v1-full-release]])")]
+        [Tooltip("Basic's Tier2: additive bonus on top of TurretData.ArmorBreakPercent while this tier is active.")]
+        public float ArmorBreakPercentBonus;
+        [Tooltip("Frost's Tier2: additive bonus on top of TurretData.SlowPercent while this tier is active.")]
+        public float SlowPercentBonus;
+        [Tooltip("Inferno's Tier2: additive bonus on top of TurretData.BurnDPS (pre hit-scaling) while this tier is active.")]
+        public float BurnDPSBonus;
+        [Tooltip("Support's Tier2: additive bonus on top of the computed support damage aura while this tier is active.")]
+        public float SupportDamageAuraBonus;
+        [Tooltip("Void's Tier2: additive bonus on top of TurretData.WeakenPercent while this tier is active.")]
+        public float WeakenPercentBonus;
+        [Tooltip("Toxin's Tier2: additive bonus on top of TurretData.ToxinPurePercent while this tier is active.")]
+        public float ToxinPurePercentBonus;
+        [Tooltip("Railgun's Tier2: additive bonus on top of TurretData.ExposePercent while this tier is active.")]
+        public float ExposePercentBonus;
     }
 }

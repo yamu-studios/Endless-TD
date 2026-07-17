@@ -43,6 +43,13 @@ namespace ETD.Core
         float GetBurnFromHitBonus();
         float GetSupportExposure();
 
+        float GetArmorPierce();
+        float GetAffinityPierce();
+
+        // v1.0 active spells (Overclock / Gold Surge) — see [[etd-v1-full-release]] Phase 2.
+        void ApplyOverclock(float bonus, float duration);
+        void ApplyGoldSurge(float multiplier, float duration);
+
         void NotifyCriticalHit();
     }
 }

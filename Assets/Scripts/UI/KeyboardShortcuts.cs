@@ -27,15 +27,18 @@ namespace ETD.Input
             var state = GameManager.Instance?.CurrentState ?? GameState.Preparation;
 
             // ---------------------------------------------------------------
-            // LEVEL UP state — spec card selection
+            // Spec card selection — gated on the panel actually being open, not on
+            // game state. v1.0: leveling up no longer pauses the run (see
+            // [[etd-v1-full-release]] Phase 4), so this panel can be showing at the
+            // same time as normal Preparation/WaveActive play — no early return, the
+            // shortcuts below still need to work underneath it.
             // ---------------------------------------------------------------
-            if (state == GameState.LevelUp)
+            if (_specCardUI != null && _specCardUI.IsShowing)
             {
-                if (KeybindingManager.GetKeyDown(KeybindAction.SelectSpecCard1)) _specCardUI?.SelectCard(0);
-                if (KeybindingManager.GetKeyDown(KeybindAction.SelectSpecCard2)) _specCardUI?.SelectCard(1);
-                if (KeybindingManager.GetKeyDown(KeybindAction.SelectSpecCard3)) _specCardUI?.SelectCard(2);
-                if (KeybindingManager.GetKeyDown(KeybindAction.RerollSpecCards)) _specCardUI?.TryReroll();
-                return;
+                if (KeybindingManager.GetKeyDown(KeybindAction.SelectSpecCard1)) _specCardUI.SelectCard(0);
+                if (KeybindingManager.GetKeyDown(KeybindAction.SelectSpecCard2)) _specCardUI.SelectCard(1);
+                if (KeybindingManager.GetKeyDown(KeybindAction.SelectSpecCard3)) _specCardUI.SelectCard(2);
+                if (KeybindingManager.GetKeyDown(KeybindAction.RerollSpecCards)) _specCardUI.TryReroll();
             }
 
             // ---------------------------------------------------------------

@@ -42,13 +42,29 @@ namespace ETD.Core
 
         private int _runTurretsBuilt;
         // Strategic Mind: bitmask of distinct turret types placed this run.
-        // 7 types (Basic..Radar = 0..6) -> full mask 0x7F.
+        // 7 types (Basic..Radar = 0..6) -> full mask 0x7F. Deliberately NOT extended
+        // to cover the v1.0 Phase 3 turret types (Void/Toxin/Railgun, indices 7-9) —
+        // this achievement already shipped as "place all 7", so widening it would
+        // silently change an already-live achievement's contract. See
+        // _runNewTurretTypesMask below for the Phase 3 equivalent.
         private int _runTurretTypesMask;
         private const int AllTurretTypesMask = (1 << 7) - 1;
+        // Cutting Edge (v1.0 Phase 3): place all 3 new turret types (Void=7, Toxin=8,
+        // Railgun=9) in a single run. Separate mask, bit 0 = Void .. bit 2 = Railgun.
+        private int _runNewTurretTypesMask;
+        private const int AllNewTurretTypesMask = (1 << 3) - 1;
         private int _runUpgrades;
         private bool _hasBurnThisRun;
         private bool _hasFrostThisRun;
         private bool _hasLightningThisRun;
+        private bool _hasBasicThisRun;
+        private bool _hasLaserThisRun;
+        private bool _hasVoidThisRun;
+        private bool _hasToxinThisRun;
+        private int _totalWeakenApplied;
+        private int _totalPoisonApplied;
+        private int _totalExposeApplied;
+        private bool _hasRailgunThisRun;
         private int _peakLivesLost;
         private bool _firstSpecCard;
         private bool _firstEvolution;
@@ -258,7 +274,22 @@ namespace ETD.Core
             if (_totalChainHits >= 1500)
                 Unlock("ACH_LIGHTNING_NETWORK");
 
-            if (_hasBurnThisRun && _hasFrostThisRun && _hasLightningThisRun)
+            CheckAllEffectsAchievement();
+        }
+
+        // ACH_ALL_EFFECTS ("Elemental Overlord"): originally required Burn+Frost+Lightning
+        // specifically. Widened alongside the elements->turret-types taxonomy change to
+        // "any 3 distinct damage-dealing turret-type families in one run" (same threshold,
+        // wider pool: Basic/Frost/Inferno/Laser/Lightning). Add a flag+case here for every
+        // future damage turret's signature status.
+        private void CheckAllEffectsAchievement()
+        {
+            int count = (_hasBurnThisRun ? 1 : 0) + (_hasFrostThisRun ? 1 : 0)
+                + (_hasLightningThisRun ? 1 : 0) + (_hasBasicThisRun ? 1 : 0)
+                + (_hasLaserThisRun ? 1 : 0) + (_hasVoidThisRun ? 1 : 0) + (_hasToxinThisRun ? 1 : 0)
+                + (_hasRailgunThisRun ? 1 : 0);
+
+            if (count >= 3)
                 Unlock("ACH_ALL_EFFECTS");
         }
 
@@ -326,6 +357,16 @@ namespace ETD.Core
                 SaveCounter("ach_run_turret_types", _runTurretTypesMask);
                 if (_runTurretTypesMask == AllTurretTypesMask)
                     Unlock("ACH_FIRST_TRAIT");
+            }
+
+            // Cutting Edge: place all 3 v1.0 Phase 3 turret types (Void/Toxin/Railgun,
+            // indices 7-9) in a single run.
+            if (evt.TurretType >= 7 && evt.TurretType < 10)
+            {
+                _runNewTurretTypesMask |= 1 << (evt.TurretType - 7);
+                SaveCounter("ach_run_new_turret_types", _runNewTurretTypesMask);
+                if (_runNewTurretTypesMask == AllNewTurretTypesMask)
+                    Unlock("ACH_CUTTING_EDGE");
             }
         }
 
@@ -397,10 +438,41 @@ namespace ETD.Core
                     if (_totalChainHits >= 1500)
                         Unlock("ACH_LIGHTNING_NETWORK");
                     break;
+
+                case StatusEffectType.ArmorBreak:
+                    _hasBasicThisRun = true;
+                    break;
+
+                case StatusEffectType.HPPercentReduce:
+                    _hasLaserThisRun = true;
+                    break;
+
+                case StatusEffectType.Weaken:
+                    _hasVoidThisRun = true;
+                    _totalWeakenApplied++;
+                    SaveCounter("ach_weaken_applied", _totalWeakenApplied);
+                    if (_totalWeakenApplied >= 1000)
+                        Unlock("ACH_VOID_WALKER");
+                    break;
+
+                case StatusEffectType.Poison:
+                    _hasToxinThisRun = true;
+                    _totalPoisonApplied++;
+                    SaveCounter("ach_poison_applied", _totalPoisonApplied);
+                    if (_totalPoisonApplied >= 2000)
+                        Unlock("ACH_TOXIC_TOUCH");
+                    break;
+
+                case StatusEffectType.Expose:
+                    _hasRailgunThisRun = true;
+                    _totalExposeApplied++;
+                    SaveCounter("ach_expose_applied", _totalExposeApplied);
+                    if (_totalExposeApplied >= 500)
+                        Unlock("ACH_MARKED_FOR_DEATH");
+                    break;
             }
 
-            if (_hasBurnThisRun && _hasFrostThisRun && _hasLightningThisRun)
-                Unlock("ACH_ALL_EFFECTS");
+            CheckAllEffectsAchievement();
         }
 
         private void OnScoreChanged(ScoreChangedEvent evt)
@@ -509,10 +581,17 @@ namespace ETD.Core
             _runTurretsBuilt = 0;
             _runTurretTypesMask = 0;
             SaveCounter("ach_run_turret_types", 0);
+            _runNewTurretTypesMask = 0;
+            SaveCounter("ach_run_new_turret_types", 0);
             _runUpgrades = 0;
             _hasBurnThisRun = false;
             _hasFrostThisRun = false;
             _hasLightningThisRun = false;
+            _hasBasicThisRun = false;
+            _hasLaserThisRun = false;
+            _hasVoidThisRun = false;
+            _hasToxinThisRun = false;
+            _hasRailgunThisRun = false;
             _peakLivesLost = 0;
             _firstSpecCard = false;
             _runLaserSeconds = 0f;
@@ -531,9 +610,13 @@ namespace ETD.Core
             _totalMeta = LoadCounterF("ach_total_meta");
             _totalShopBuys = LoadCounter("ach_total_shop_buys");
             _totalChallenges = LoadCounter("ach_total_challenges");
+            _totalWeakenApplied = LoadCounter("ach_weaken_applied");
+            _totalPoisonApplied = LoadCounter("ach_poison_applied");
+            _totalExposeApplied = LoadCounter("ach_expose_applied");
             // Run-scoped Strategic Mind progress survives quit/resume: snapshot restore
             // re-places turrets without placement events, so this is the only record.
             _runTurretTypesMask = LoadCounter("ach_run_turret_types");
+            _runNewTurretTypesMask = LoadCounter("ach_run_new_turret_types");
         }
 
         private static int LoadCounter(string key)

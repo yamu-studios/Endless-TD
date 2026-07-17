@@ -25,6 +25,10 @@ namespace ETD.Core
         [SerializeField] private GameObject _slowStatusVFX;
         [SerializeField] private GameObject _burnStatusVFX;
         [SerializeField] private GameObject _chainStatusVFX;
+        [SerializeField] private GameObject _armorBreakStatusVFX;
+        [SerializeField] private GameObject _weakenStatusVFX;
+        [SerializeField] private GameObject _poisonStatusVFX;
+        [SerializeField] private GameObject _exposeStatusVFX;
 
         private readonly Dictionary<int, Queue<ParticleSystem>> _pools = new();
         private readonly Dictionary<int, GameObject> _prefabLookup = new();
@@ -41,7 +45,11 @@ namespace ETD.Core
                 [StatusEffectType.Slow] = _slowStatusVFX,
                 [StatusEffectType.Freeze] = _slowStatusVFX,
                 [StatusEffectType.Burn] = _burnStatusVFX,
-                [StatusEffectType.ChainLightning] = _chainStatusVFX
+                [StatusEffectType.ChainLightning] = _chainStatusVFX,
+                [StatusEffectType.ArmorBreak] = _armorBreakStatusVFX,
+                [StatusEffectType.Weaken] = _weakenStatusVFX,
+                [StatusEffectType.Poison] = _poisonStatusVFX,
+                [StatusEffectType.Expose] = _exposeStatusVFX
             };
         }
 

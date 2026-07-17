@@ -27,6 +27,10 @@ namespace ETD.Enemies
         [SerializeField] private GameObject _burnStatusVFX;
         [SerializeField] private GameObject _lightningStatusVFX;
         [SerializeField] private GameObject _laserStatusVFX;
+        [SerializeField] private GameObject _armorBreakStatusVFX;
+        [SerializeField] private GameObject _weakenStatusVFX;
+        [SerializeField] private GameObject _poisonStatusVFX;
+        [SerializeField] private GameObject _exposeStatusVFX;
         [SerializeField] private GameObject _buffStatusVFX;
         [SerializeField] private GameObject _debuffStatusVFX;
 
@@ -52,6 +56,10 @@ namespace ETD.Enemies
             //_buffStatusVFX?.SetActive(false);
             _debuffStatusVFX?.SetActive(false);
             _laserStatusVFX?.SetActive(false);
+            _armorBreakStatusVFX?.SetActive(false);
+            _weakenStatusVFX?.SetActive(false);
+            _poisonStatusVFX?.SetActive(false);
+            _exposeStatusVFX?.SetActive(false);
         }
 
         private GameObject GetVFX(StatusEffectType type) => type switch
@@ -61,6 +69,10 @@ namespace ETD.Enemies
             StatusEffectType.Burn    => _burnStatusVFX,
             StatusEffectType.ChainLightning => _lightningStatusVFX,
             StatusEffectType.HPPercentReduce => _laserStatusVFX,
+            StatusEffectType.ArmorBreak => _armorBreakStatusVFX,
+            StatusEffectType.Weaken => _weakenStatusVFX,
+            StatusEffectType.Poison => _poisonStatusVFX,
+            StatusEffectType.Expose => _exposeStatusVFX,
             _ => null
         };
 

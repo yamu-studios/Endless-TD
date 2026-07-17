@@ -15,7 +15,10 @@ namespace ETD.Data
         Splitter,
         Sprinter,
         Debuffer,
-        Buffer
+        Buffer,
+
+        // v1.0 Phase 3 - appended, do not reorder. See [[etd-v1-full-release]].
+        Regenerator
     }
 
     public enum EnemyTier
@@ -23,6 +26,22 @@ namespace ETD.Data
         Normal,
         Elite,
         Boss
+    }
+
+    /// <summary>
+    /// Resistance (or, if negative, weakness) this enemy has against a specific
+    /// damage-dealing turret type. Part of the v1.0 turret-type affinity system —
+    /// see [[etd-v1-full-release]]. Only the damage-dealing turret types
+    /// (Basic/Frost/Inferno/Laser/Lightning, + future damage turrets) are meaningful
+    /// here; Support/Radar never deal damage so an entry for them is a no-op.
+    /// </summary>
+    [System.Serializable]
+    public struct TurretTypeAffinity
+    {
+        public TurretType Type;
+        [Range(-1f, 1f)]
+        [Tooltip("Positive = damage reduction from this turret type. Negative = weakness (bonus damage taken).")]
+        public float ResistancePercent;
     }
 
     [CreateAssetMenu(fileName = "New Enemy", menuName = "ETD/Enemy Data")]
@@ -39,7 +58,11 @@ namespace ETD.Data
         [Header("Base Stats")]
         public float MaxHealth = 100f;
         public float MoveSpeed = 2f;
+        [Tooltip("Percentage damage reduction (0.1 = 10% less damage taken from all sources except pure/true damage). Converted from the old flat-subtraction value during the v1.0 mitigation rework — first-pass values, expect a playtesting/retuning pass.")]
+        [Range(0f, 0.9f)]
         public float Armor = 0f;
+        [Tooltip("Per-turret-type resistance/weakness. Empty = no affinity either way.")]
+        public TurretTypeAffinity[] Affinities = System.Array.Empty<TurretTypeAffinity>();
         public int DamageToPlayer = 1;
 
         [Header("Rewards")]
@@ -72,6 +95,8 @@ namespace ETD.Data
         public float AuraRadius = 3f;
         [Tooltip("Debuffer: turret stat reduction %")]
         public float DebuffPercent = 0.2f;
+        [Tooltip("Regenerator: fraction of MAX HP regenerated per second (0.02 = 2%/s). Punishes low-sustained-DPS builds and rewards burst/true damage (Toxin, Railgun).")]
+        public float RegenPercentPerSecond = 0.02f;
 
         [Header("Scaling")]
         [Tooltip("Per-wave HP growth rate at wave 0. 1.06 = +6% per wave early game.")]

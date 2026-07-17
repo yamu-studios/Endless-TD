@@ -265,7 +265,11 @@ namespace ETD.Debugging
 
             var state = GameManager.Instance != null ? GameManager.Instance.CurrentState : GameState.Preparation;
 
-            if (state == GameState.LevelUp && _autoPickSpecCards)
+            // v1.0: leveling up no longer pauses the run (offers queue instead — see
+            // [[etd-v1-full-release]] Phase 4), so drive this off the pending-offer
+            // queue rather than GameState.LevelUp, which the soak test would
+            // otherwise never observe.
+            if (_runManager != null && _runManager.PendingOfferCount > 0 && _autoPickSpecCards)
             {
                 TryAutoPickSpecCard();
                 return;

@@ -51,6 +51,7 @@ namespace ETD.Hub
         [SerializeField] private int   _maxHPPrice            = 70;
         [SerializeField] private int   _traitUpgradeBasePrice = 40;
         [SerializeField] private float _upgradePriceScale     = 1.5f;
+        [SerializeField] private int   _spellUpgradePrice     = 90;
 
         [Header("Close")]
         [SerializeField] private Button _closeButton;
@@ -186,6 +187,19 @@ namespace ETD.Hub
                 Price = _maxHPPrice, Category = ShopCategory.Basics,
                 isSupply = true,
                 LocalizationKey = "hp"
+            });
+
+            // v1.0 active spell cooldown upgrade (Arcane Focus). Icon left unassigned —
+            // manual step: assign a sprite in the Inspector when art exists.
+            AddSupply(new ShopItemData
+            {
+                Id = "basic_spell_upgrade", Name = "Arcane Focus",
+                Icon = null,
+                Description = "Permanently reduces your active spell's cooldown by 5%. Stack ten for -50% cooldown.",
+                CurrentLevel = save.ShopSpellUpgradeLevel, MaxLevel = 10,
+                Price = _spellUpgradePrice, Category = ShopCategory.Basics,
+                isSupply = true,
+                LocalizationKey = "spell_upgrade"
             });
         }
 
@@ -378,6 +392,13 @@ namespace ETD.Hub
                     if (!_metaManager.SpendMetaCurrency(item.Price)) return false;
                     save.ShopGoldMultiplierLevel++;
                     save.PermanentBonuses[2] += 0.15f;
+                    SaveSystem.Save(save);
+                    return true;
+
+                case "basic_spell_upgrade":
+                    if (save.ShopSpellUpgradeLevel >= 10) return false;
+                    if (!_metaManager.SpendMetaCurrency(item.Price)) return false;
+                    save.ShopSpellUpgradeLevel++;
                     SaveSystem.Save(save);
                     return true;
 

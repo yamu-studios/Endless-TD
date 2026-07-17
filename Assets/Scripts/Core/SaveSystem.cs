@@ -64,6 +64,11 @@ namespace ETD.Core
         // Persistent planning selections (survive app restart)
         public string[] SelectedTraitIds = System.Array.Empty<string>();
 
+        // v1.0 active spell system: single selection (not an array like traits — only
+        // one spell is ever equipped) + shop upgrade level (cooldown reduction).
+        public string SelectedSpellId = "";
+        public int ShopSpellUpgradeLevel = 0;
+
         public int[] ChallengeProgressTypes = System.Array.Empty<int>();
         public float[] ChallengeProgressValues = System.Array.Empty<float>();
         // Lifetime stats  persist across all runs
@@ -150,6 +155,7 @@ namespace ETD.Core
         public int Level;
         public bool IsEvolved;
         public int EvolutionPath;  // 0=A, 1=B, -1=not evolved
+        public bool IsEvolvedTier2; // v1.0 level-25 shared second evolution tier; false on old saves
         public int Gold;           // gold invested
         public int TargetingMode;  // cast to ETD.Data.TargetingMode; 0 = First (old saves)
     }
@@ -410,6 +416,13 @@ namespace ETD.Core
         {
             var data = Load();
             data.SelectedTraitIds = traitIds ?? System.Array.Empty<string>();
+            Save(data);
+        }
+
+        public static void SaveSelectedSpell(string spellId)
+        {
+            var data = Load();
+            data.SelectedSpellId = spellId ?? "";
             Save(data);
         }
 

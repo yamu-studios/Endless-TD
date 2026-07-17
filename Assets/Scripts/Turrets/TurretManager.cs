@@ -77,7 +77,8 @@ namespace ETD.Turrets
 
             if (turret != null)
             {
-                turret.RestoreSnapshotState(snap.Level, snap.Gold, snap.IsEvolved, snap.EvolutionPath);
+                turret.RestoreSnapshotState(snap.Level, snap.Gold, snap.IsEvolved, snap.EvolutionPath,
+                    snap.IsEvolvedTier2);
                 turret.SetTargetingMode((TargetingMode)snap.TargetingMode);
                 if (!_activeTurrets.Contains(turret))
                     _activeTurrets.Add(turret);
@@ -145,6 +146,23 @@ namespace ETD.Turrets
         // =================================================================
         // EVOLUTION â destroy old prefab, spawn evolved prefab, transfer state
         // =================================================================
+
+        /// <summary>
+        /// v1.0 level-25 shared second evolution tier. Always evolves in place (no
+        /// prefab swap) — Tier2 converges from either Path A or B so there's no
+        /// second visual form to spawn, unlike EvolveTurret's optional EvolvedPrefab.
+        /// </summary>
+        public bool EvolveTurretTier2(int instanceId, bool publishEvent = true)
+        {
+            if (!_turrets.TryGetValue(instanceId, out var controller))
+            {
+                Debug.LogWarning($"[TurretManager] EvolveTurretTier2: turret {instanceId} not found");
+                return false;
+            }
+
+            controller.EvolveTier2(publishEvent);
+            return true;
+        }
 
         public TurretController EvolveTurret(int instanceId, int evolutionPath, bool publishEvent = true)
         {

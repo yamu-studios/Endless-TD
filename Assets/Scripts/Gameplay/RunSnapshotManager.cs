@@ -63,16 +63,20 @@ namespace ETD.Gameplay
                               : new float[10]
             };
 
-            // FIX 2: Save level-up pending state + spec card options
-            bool levelUpPending = GameManager.Instance != null
-                && GameManager.Instance.CurrentState == GameState.LevelUp;
-            snap.IsLevelUpPending = levelUpPending;
+            // v1.0: leveling up no longer pauses the run (see [[etd-v1-full-release]]),
+            // so "pending" is no longer tied to GameState.LevelUp — it's just whether
+            // the offer queue is non-empty. Every queued offer is flattened here
+            // (fixed GameConstants.SPEC_CARDS_PER_LEVELUP chunk size per offer) so
+            // save/resume preserves the whole queue, not just one offer.
+            bool hasPendingOffers = _runManager.PendingOfferCount > 0;
+            snap.IsLevelUpPending = hasPendingOffers;
 
-            if (levelUpPending && _runManager.CurrentSpecOptions != null)
+            if (hasPendingOffers)
             {
                 var cardIds = new List<string>();
-                foreach (var card in _runManager.CurrentSpecOptions)
-                    cardIds.Add(card?.Id ?? "");
+                foreach (var offer in _runManager.PendingOffers)
+                    foreach (var card in offer)
+                        cardIds.Add(card?.Id ?? "");
                 snap.PendingSpecCardIds = cardIds.ToArray();
             }
 
@@ -111,6 +115,7 @@ namespace ETD.Gameplay
                         Level = tc.Level,
                         IsEvolved = tc.IsEvolved,
                         EvolutionPath = tc.IsEvolved ? tc.EvolutionPath : -1,
+                        IsEvolvedTier2 = tc.IsEvolvedTier2,
                         Gold = tc.TotalGoldInvested,
                         TargetingMode = (int)tc.CurrentTargetingMode
                     });
@@ -268,23 +273,32 @@ namespace ETD.Gameplay
             // appearing "off" until the next upgrade/wave.
             _turretManager?.RecalculateAllTurretsAndRefreshAuras();
 
-            // FIX 2: If level-up was pending, restore and re-show spec cards
+            // v1.0: restore the WHOLE pending-offer queue (not just one offer), and
+            // do NOT force GameState.LevelUp — leveling up no longer pauses the run,
+            // so a resumed run with pending offers just keeps playing, same as a
+            // fresh one. The player opens the picker whenever they want.
             if (snap.IsLevelUpPending && snap.PendingSpecCardIds != null
                 && snap.PendingSpecCardIds.Length > 0)
             {
-                var cards = new List<SpecCardData>();
-                foreach (var id in snap.PendingSpecCardIds)
+                int chunkSize = Mathf.Max(1, GameConstants.SPEC_CARDS_PER_LEVELUP);
+                for (int offset = 0; offset < snap.PendingSpecCardIds.Length; offset += chunkSize)
                 {
-                    var card = _database?.GetSpecCard(id);
-                    if (card != null) cards.Add(card);
+                    var offerCards = new SpecCardData[chunkSize];
+                    bool anyResolved = false;
+                    for (int i = 0; i < chunkSize && offset + i < snap.PendingSpecCardIds.Length; i++)
+                    {
+                        string id = snap.PendingSpecCardIds[offset + i];
+                        var card = string.IsNullOrEmpty(id) ? null : _database?.GetSpecCard(id);
+                        offerCards[i] = card;
+                        anyResolved |= card != null;
+                    }
+
+                    if (anyResolved)
+                        _runManager.SetSpecCardOptions(offerCards);
                 }
 
-                if (cards.Count > 0)
-                {
-                    _runManager.SetSpecCardOptions(cards.ToArray());
-                    // Delay one frame so all systems are initialized
-                    StartCoroutine(DelayedLevelUpEvent(run.Level));
-                }
+                if (run.Level > 0)
+                    EventBus.Publish(new LevelUpEvent { NewLevel = run.Level });
             }
         }
 
@@ -315,14 +329,6 @@ namespace ETD.Gameplay
                     });
                 }
             }
-        }
-
-
-        private System.Collections.IEnumerator DelayedLevelUpEvent(int level)
-        {
-            yield return null; // wait one frame
-            GameManager.Instance.SetState(GameState.LevelUp);
-            EventBus.Publish(new LevelUpEvent { NewLevel = level });
         }
 
         // =================================================================

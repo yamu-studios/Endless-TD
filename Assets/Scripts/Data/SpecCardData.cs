@@ -62,7 +62,17 @@ namespace ETD.Data
 
         // v0.12 - appended, do not reorder.
         BurnFromHit,  // Catalytic Burn: adds to the burn-from-hit fraction (0.15 = +15pp of hit damage as burn)
-        SupportExposure // Elemental Relay: enemies inside a Support debuff aura take bonus burn/chain damage (capped 25%)
+        SupportExposure, // Elemental Relay: enemies inside a Support debuff aura take bonus burn/chain damage (capped 25%)
+
+        // v1.0 - appended, do not reorder. See [[etd-v1-full-release]] Phase 1.
+        ArmorPierce,     // Ignores this many percentage points of enemy Armor
+        AffinityPierce,  // Ignores this many percentage points of enemy turret-type affinity resistance
+
+        // v1.0 Phase 2 - Luck. Feeds RunStatModifiers.GetGradeBonus() alongside the
+        // pre-existing (previously contentless) TraitEffectType.GradeBonus / "Lucky
+        // Charm" — same mechanic RunManager.GetRarityWeight already consumed for both
+        // initial offers and reroll pools, just never had any card/trait granting it.
+        Luck
     }
 
     [CreateAssetMenu(fileName = "New Spec Card", menuName = "ETD/Spec Card Data")]

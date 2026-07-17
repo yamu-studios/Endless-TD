@@ -92,6 +92,14 @@ namespace ETD.Turrets
                  "BurnDPS from turret data acts as an early-game floor. Keeps Inferno relevant late-game.")]
         [SerializeField, Range(0f, 1f)] private float _burnHitPercent = 0.25f;
 
+        [Header("Blastfire Splash (Inferno Path A)")]
+        [Tooltip("Blastfire's evolved detonation splashes this fraction of the turret's per-hit " +
+                 "damage to every enemy within ConeRange of the struck target, on EVERY shot. " +
+                 "Because it scales off the turret's damage, the explosion keeps up with upgrades " +
+                 "and enemy HP scaling. 0.6 = 60% of a normal hit to each nearby enemy. The flat " +
+                 "ConeDPS from turret data acts as an early-game floor when set.")]
+        [SerializeField, Range(0f, 2f)] private float _blastfireAreaDamagePercent = 0.6f;
+
         [Header("Upgrade Visual Scale")]
         [Tooltip("If enabled, the turret model starts at Min Scale Multiplier and grows only during the first Scale Steps upgrades.")]
         [SerializeField] private bool _scaleTurretOnUpgrade = true;
@@ -174,7 +182,7 @@ namespace ETD.Turrets
 
         [Header("Evolved Attack Performance")]
         [Tooltip("Hard cap for enemies affected by a single evolved area effect. Keeps dense late-wave area attacks bounded.")]
-        [SerializeField, Min(1)] private int _maxEvolvedAreaTargets = 24;
+        [SerializeField, Min(1)] private int _maxEvolvedAreaTargets = 48;
 
         [Tooltip("How often evolved area attacks refresh their nearby-enemy candidate cache.")]
         [SerializeField, Min(0.03f)] private float _evolvedAreaTargetRefreshInterval = 0.12f;
@@ -196,6 +204,7 @@ namespace ETD.Turrets
         public int Level { get; private set; } = 1;
         public int TotalGoldInvested { get; private set; }
         public bool IsEvolved { get; private set; }
+        public bool IsEvolvedTier2 { get; private set; }
         public TileSpecialty TileSpecialty { get; private set; }
         public DynamicTileData DynamicTile { get; private set; }
         public int EvolutionPath { get; private set; } = -1;
@@ -335,6 +344,11 @@ namespace ETD.Turrets
         private int _upgradeVisualScaleStartLevel = 1;
 
         private TurretEvolutionData _cachedEvolution;
+        // v1.0 level-25 shared second evolution tier. Kept separate from
+        // _cachedEvolution (Path A/B) rather than folding into it, since Tier2 only
+        // contributes a small, explicitly-summed set of bonuses (currently
+        // HitCurrentHPPercent) instead of replacing the Path's own cached fields.
+        private TurretEvolutionData _cachedTier2Evolution;
         private bool _hasPostAttackEvolutionEffects;
         private bool _cachedDoubleProjectile;
         private float _cachedDoubleProjectileDamageMultiplier = 1f;
@@ -524,6 +538,8 @@ namespace ETD.Turrets
                 ? Mathf.Max(0f, _cachedEvolution.MultiTargetDamagePercent)
                 : 0f;
             _cachedIsStackingLaser = _cachedEvolution != null && EvolutionPath == 1 && _cachedEvolution.StackingDamage;
+
+            _cachedTier2Evolution = IsEvolvedTier2 && Data != null ? Data.Tier2 : null;
 
             _areaSlowAnchorTarget = null;
             _areaDamageAnchorTarget = null;
@@ -1053,7 +1069,6 @@ namespace ETD.Turrets
         {
             if (target == null || target.IsDead || !target.gameObject.activeInHierarchy) return false;
             if (target.IsStealth && !target.IsRevealed && !Data.CanTargetStealth) return false;
-            if (!target.IsTargetable) return false;
 
             Vector3 origin = _cachedTransform != null ? _cachedTransform.position : transform.position;
             Vector3 targetPos = target.transform.position;
@@ -1130,9 +1145,51 @@ namespace ETD.Turrets
 
             switch (Data.Type)
             {
+                case TurretType.Basic:
+                    // Basic's signature status: temporary armor reduction on the target,
+                    // consumed by EnemyController.ApplyMitigation. Tier2 (Lv 25) adds
+                    // ArmorBreakPercentBonus on top, converging from either Path A or B.
+                    status = StatusEffectType.ArmorBreak;
+                    statusValue = (Data.ArmorBreakPercent
+                        + (_cachedTier2Evolution != null ? _cachedTier2Evolution.ArmorBreakPercentBonus : 0f))
+                        * identityMult;
+                    statusDuration = Data.ArmorBreakDuration * identityMult;
+                    break;
+
+                case TurretType.Toxin:
+                    // Identity/VFX marker only — mirrors Laser's HPPercentReduce fix
+                    // from Phase 0. The actual damage is a direct TakePureDamage call
+                    // below (after finalDamage is computed), not carried through this
+                    // status's value, since it must bypass mitigation entirely.
+                    status = StatusEffectType.Poison;
+                    statusValue = 1f;
+                    statusDuration = 1f * identityMult;
+                    break;
+
+                case TurretType.Railgun:
+                    status = StatusEffectType.Expose;
+                    statusValue = (Data.ExposePercent
+                        + (_cachedTier2Evolution != null ? _cachedTier2Evolution.ExposePercentBonus : 0f))
+                        * identityMult;
+                    statusDuration = Data.ExposeDuration * identityMult;
+                    break;
+
+                case TurretType.Void:
+                    // Void's signature status: corrodes the target's effective Armor
+                    // (consumed in EnemyController.ApplyMitigation), stacking with the
+                    // player's own ArmorPierce stat rather than duplicating it.
+                    status = StatusEffectType.Weaken;
+                    statusValue = (Data.WeakenPercent
+                        + (_cachedTier2Evolution != null ? _cachedTier2Evolution.WeakenPercentBonus : 0f))
+                        * identityMult;
+                    statusDuration = Data.WeakenDuration * identityMult;
+                    break;
+
                 case TurretType.Frost:
                     status = StatusEffectType.Slow;
-                    statusValue = Data.SlowPercent * identityMult;
+                    statusValue = (Data.SlowPercent
+                        + (_cachedTier2Evolution != null ? _cachedTier2Evolution.SlowPercentBonus : 0f))
+                        * identityMult;
                     statusDuration = Data.SlowDuration * identityMult;
                     if (_statModifiers != null)
                     {
@@ -1143,7 +1200,9 @@ namespace ETD.Turrets
 
                 case TurretType.Inferno:
                     status = StatusEffectType.Burn;
-                    statusValue = Data.BurnDPS * identityMult;
+                    statusValue = (Data.BurnDPS
+                        + (_cachedTier2Evolution != null ? _cachedTier2Evolution.BurnDPSBonus : 0f))
+                        * identityMult;
                     statusDuration = Data.BurnDuration;
                     if (_statModifiers != null)
                     {
@@ -1169,11 +1228,32 @@ namespace ETD.Turrets
             // to a fraction of the target's CURRENT HP per hit — the same scaling class
             // that makes the Lightning chain evolution viable at wave 100+. Counts
             // toward percent-HP damage tracking/unlocks.
-            if (_cachedEvolution != null && _cachedEvolution.HitCurrentHPPercent > 0f && !target.IsDead)
+            float hitCurrentHPPercent = (_cachedEvolution != null ? _cachedEvolution.HitCurrentHPPercent : 0f)
+                + (_cachedTier2Evolution != null ? _cachedTier2Evolution.HitCurrentHPPercent : 0f);
+            if (hitCurrentHPPercent > 0f && !target.IsDead)
             {
-                float pctDamage = target.CurrentHealth * _cachedEvolution.HitCurrentHPPercent;
+                float pctDamage = target.CurrentHealth * hitCurrentHPPercent;
                 finalDamage += pctDamage;
                 EventBus.Publish(new PercentHPDamageEvent { DamageAmount = pctDamage });
+            }
+
+            // Toxin's signature identity: bonus PURE damage per hit that bypasses
+            // Armor/affinity entirely (unlike the HitCurrentHPPercent bonus above,
+            // which is added to finalDamage and still goes through mitigation).
+            if (Data.Type == TurretType.Toxin && !target.IsDead)
+            {
+                float toxinPercent = Data.ToxinPurePercent
+                    + (_cachedTier2Evolution != null ? _cachedTier2Evolution.ToxinPurePercentBonus : 0f);
+                if (toxinPercent > 0f)
+                {
+                    float pureDamage = target.CurrentHealth * toxinPercent * identityMult;
+                    if (pureDamage > 0f)
+                    {
+                        target.TakePureDamage(pureDamage, playHitVFX: false, showDamageNumber: false,
+                            sourceTurretType: (int)Data.Type, sourceTurretId: InstanceId);
+                        EventBus.Publish(new PercentHPDamageEvent { DamageAmount = pureDamage });
+                    }
+                }
             }
 
             // Burn rework: flat data BurnDPS becomes irrelevant once hits reach
@@ -1331,6 +1411,16 @@ namespace ETD.Turrets
                 sourceTurretType: (int)Data.Type,
                 sourceTurretId: InstanceId);
             Profiler.EndSample();
+
+            // Laser's signature status marker: HPPercentReduce previously existed only
+            // in the enum/VFX map with no ApplyStatus call site, so a base (non-Stacker)
+            // laser never registered as its own turret-type family for challenge/
+            // achievement tracking. Applied on every tick (short refreshing duration,
+            // mirrors Frost/Inferno applying alongside their per-hit damage) so any
+            // laser build counts, not just the evolved missing-HP execute.
+            if (!target.IsDead)
+                target.ApplyStatus(StatusEffectType.HPPercentReduce, _laserStackMultiplier - 1f, 0.5f,
+                    (int)Data.Type, InstanceId);
 
             AccumulateLaserRefraction(target, damageThisTick, damageDt);
 
@@ -1694,10 +1784,10 @@ namespace ETD.Turrets
                     SpreadBurn(target, statusValue, statusDuration);
             }
 
-            if (target.IsDead)
-            {
-                TryDeathExplosion(target.transform.position, hitDamage);
-            }
+            // Death Explosion now procs centrally from EnemyController.Die() so it can
+            // trigger off ANY kill type (laser ticks, chain hits, burn/DoT, evolved
+            // area splash), not just this primary-hit path. See EnemyController's
+            // LastHit* tracking + TryTriggerDeathExplosion.
 
             // Thermal Bloom: burn spreads only when a burning enemy dies.
             if (target.IsDead && target.HasStatus(StatusEffectType.Burn))
@@ -1712,23 +1802,6 @@ namespace ETD.Turrets
             StatusEffectType statusType, float statusValue, float statusDuration)
         {
             ApplyOnHitSpecials(target, damage, statusType, statusValue, statusDuration);
-        }
-
-        private void TryDeathExplosion(Vector3 center, float sourceDamage)
-        {
-            float chance = _statModifiers?.GetDeathExplosionChance() ?? 0f;
-            if (chance <= 0f || Random.value > chance || _enemyManager == null) return;
-
-            const float radius = 2.25f;
-            const float damagePercent = 0.8f;
-
-            _enemyManager.GetEnemiesInRange(center, radius, _specialTargets);
-            for (int i = 0; i < _specialTargets.Count; i++)
-            {
-                var e = _specialTargets[i];
-                if (e == null || e.IsDead) continue;
-                e.TakeDamage(sourceDamage * damagePercent, sourceTurretType: (int)Data.Type, sourceTurretId: InstanceId);
-            }
         }
 
         private void SpreadBurn(EnemyController source, float burnDps, float duration)
@@ -1933,7 +2006,8 @@ namespace ETD.Turrets
             List<EnemyController> results,
             ref EnemyController cachedAnchor,
             ref Vector3 cachedAnchorPosition,
-            ref float nextRefreshTime)
+            ref float nextRefreshTime,
+            bool prioritizeClosestToExit = false)
         {
             if (_enemyManager == null || anchor == null || anchor.IsDead)
             {
@@ -1952,7 +2026,8 @@ namespace ETD.Turrets
                 position,
                 Mathf.Max(0.1f, radius),
                 results,
-                Mathf.Max(1, _maxEvolvedAreaTargets));
+                Mathf.Max(1, _maxEvolvedAreaTargets),
+                prioritizeClosestToExit: prioritizeClosestToExit);
 
             cachedAnchor = anchor;
             cachedAnchorPosition = position;
@@ -1979,7 +2054,8 @@ namespace ETD.Turrets
             if (evo.AreaSlow && now >= _nextAreaSlowApplyTime)
             {
                 RefreshEvolvedAreaTargets(target, evo.AreaSlowRadius, _evolvedAreaSlowTargets,
-                    ref _areaSlowAnchorTarget, ref _areaSlowAnchorPosition, ref _nextAreaSlowTargetRefreshTime);
+                    ref _areaSlowAnchorTarget, ref _areaSlowAnchorPosition, ref _nextAreaSlowTargetRefreshTime,
+                    prioritizeClosestToExit: true);
 
                 for (int i = 0; i < _evolvedAreaSlowTargets.Count; i++)
                 {
@@ -2002,8 +2078,28 @@ namespace ETD.Turrets
                     ref _areaDamageAnchorTarget, ref _areaDamageAnchorPosition, ref _nextAreaDamageTargetRefreshTime);
 
                 bool applyBurn = now >= _nextAreaBurnApplyTime;
-                float areaDamage = ApplyCriticalDamage(evo.ConeDPS * Time.deltaTime);
+
+                // Blastfire detonation. Each shot splashes a fraction of this turret's
+                // per-hit damage to nearby enemies, so the explosion scales with upgrades
+                // and enemy HP instead of the old flat ConeDPS. ConeDPS remains an
+                // early-game flat floor when authored. (The previous code multiplied
+                // ConeDPS by Time.deltaTime even though this runs once per shot, which,
+                // combined with ConeDPS being 0 in data, meant the blast dealt no damage.)
+                float splashDamage = Mathf.Max(evo.ConeDPS, Damage * Mathf.Max(0f, _blastfireAreaDamagePercent));
+                float areaDamage = ApplyCriticalDamage(splashDamage);
                 bool isAreaCritical = _lastDamageRollWasCritical;
+
+                // Spread burn scales off the splash hit (mirrors the primary Inferno burn),
+                // with the flat ConeBurnDPS as an early-game floor so it stays relevant late.
+                float spreadBurnDps = evo.ConeBurnDPS;
+                if (Data.BurnDuration > 0.01f)
+                {
+                    float burnBonus = _statModifiers != null ? _statModifiers.GetBurnDamageMultiplier() : 1f;
+                    float hitScaledDps = (areaDamage * _burnHitPercent / Data.BurnDuration) * burnBonus;
+                    if (hitScaledDps > spreadBurnDps)
+                        spreadBurnDps = hitScaledDps;
+                }
+
                 int hitVfxBudget = 2;
 
                 for (int i = 0; i < _evolvedAreaDamageTargets.Count; i++)
@@ -2020,7 +2116,7 @@ namespace ETD.Turrets
                         sourceTurretType: (int)Data.Type, sourceTurretId: InstanceId);
 
                     if (applyBurn && !enemy.IsDead)
-                        enemy.ApplyStatus(StatusEffectType.Burn, evo.ConeBurnDPS, Data.BurnDuration, (int)Data.Type, InstanceId);
+                        enemy.ApplyStatus(StatusEffectType.Burn, spreadBurnDps, Data.BurnDuration, (int)Data.Type, InstanceId);
                 }
 
                 if (applyBurn)
@@ -2121,9 +2217,10 @@ namespace ETD.Turrets
                 : 1f;
 
             int levelIndex = Mathf.Max(0, Level - 1);
+            float tier2AuraBonus = _cachedTier2Evolution != null ? _cachedTier2Evolution.SupportDamageAuraBonus : 0f;
             damageBonus = Mathf.Max(
                 0f,
-                Data.SupportDamageAura + Data.SupportDamageAuraPerLevel * levelIndex) * auraMultiplier;
+                Data.SupportDamageAura + Data.SupportDamageAuraPerLevel * levelIndex + tier2AuraBonus) * auraMultiplier;
 
             if (IsEvolved && EvolutionPath == 0)
             {
@@ -2391,6 +2488,12 @@ namespace ETD.Turrets
                 GameManager.Instance.PushModalState(GameState.EvolveChoice);
                 EventBus.Publish(new ShowEvolveChoiceEvent { TurretId = InstanceId });
             }
+            else if (IsEvolved && !IsEvolvedTier2 && Data.Tier2 != null &&
+                Level >= Data.EvolveLevel2 && Data.Type != TurretType.Radar)
+            {
+                GameManager.Instance.PushModalState(GameState.EvolveChoice);
+                EventBus.Publish(new ShowEvolveTier2ChoiceEvent { TurretId = InstanceId });
+            }
         }
 
         public void UpgradeSilent()
@@ -2436,6 +2539,37 @@ namespace ETD.Turrets
                 {
                     TurretId = InstanceId,
                     EvolutionPath = path
+                });
+            }
+        }
+
+        /// <summary>
+        /// v1.0 level-25 shared second evolution tier. Unlike Evolve(), there is no
+        /// path argument — Tier2 converges from whichever Path A/B was chosen at the
+        /// first evolution, so it's a single confirm rather than an A/B choice.
+        /// </summary>
+        public void EvolveTier2(bool publishEvent = true)
+        {
+            if (!IsEvolved || IsEvolvedTier2 || Data == null || Data.Tier2 == null)
+                return;
+
+            IsEvolvedTier2 = true;
+
+            RefreshEvolutionAttackCache();
+            RecalculateStats();
+            RefreshProjectileCache();
+            if (IsSupportTurret)
+                _turretManager?.MarkSupportAurasDirty();
+
+            if (publishEvent)
+            {
+                _vfxConfig?.SpawnEvolve();
+                _soundConfig?.PlayEvolve();
+
+                EventBus.Publish(new TurretEvolvedEvent
+                {
+                    TurretId = InstanceId,
+                    EvolutionPath = EvolutionPath
                 });
             }
         }
@@ -2602,23 +2736,25 @@ namespace ETD.Turrets
         /// </summary>
         public void RestoreState(int level, int totalGoldInvested, int evolutionPath)
         {
-            RestoreSnapshotStateInternal(level, totalGoldInvested, true, evolutionPath,
+            RestoreSnapshotStateInternal(level, totalGoldInvested, true, evolutionPath, false,
                 resetScaleProgressToCurrentLevel: true);
         }
 
-        public void RestoreSnapshotState(int level, int totalGoldInvested, bool isEvolved, int evolutionPath)
+        public void RestoreSnapshotState(int level, int totalGoldInvested, bool isEvolved, int evolutionPath,
+            bool isEvolvedTier2 = false)
         {
-            RestoreSnapshotStateInternal(level, totalGoldInvested, isEvolved, evolutionPath,
+            RestoreSnapshotStateInternal(level, totalGoldInvested, isEvolved, evolutionPath, isEvolvedTier2,
                 resetScaleProgressToCurrentLevel: false);
         }
 
         private void RestoreSnapshotStateInternal(int level, int totalGoldInvested, bool isEvolved,
-            int evolutionPath, bool resetScaleProgressToCurrentLevel)
+            int evolutionPath, bool isEvolvedTier2, bool resetScaleProgressToCurrentLevel)
         {
             Level = Mathf.Max(1, level);
             TotalGoldInvested = Mathf.Max(0, totalGoldInvested);
             IsEvolved = isEvolved;
             EvolutionPath = isEvolved ? evolutionPath : -1;
+            IsEvolvedTier2 = isEvolved && isEvolvedTier2 && Data != null && Data.Tier2 != null;
 
             if (IsEvolved)
             {

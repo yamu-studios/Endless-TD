@@ -92,7 +92,7 @@ MonoBehaviour:
   _laserRetargetInterval: 0.12
   _maxVisualProjectilesPerAttack: 1
   _nearbyEnemyAttackSpeedRefreshInterval: 0.15
-  _maxEvolvedAreaTargets: 24
+  _maxEvolvedAreaTargets: 48
   _evolvedAreaTargetRefreshInterval: 0.12
   _evolvedStatusReapplyInterval: 0.35
   _maxChainVisualsPerAttack: 4

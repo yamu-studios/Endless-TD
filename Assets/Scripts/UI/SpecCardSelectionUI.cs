@@ -39,6 +39,7 @@ namespace ETD.UI
 
         private RunManager _runManager;
         private bool _isShowing;
+        public bool IsShowing => _isShowing;
         private int currentRerolls = 0;
         private void Awake()
         {
@@ -110,9 +111,20 @@ namespace ETD.UI
             _isShowing = false;
             AudioManager.Instance?.PlaySFX(GameSoundConfig.Instance?.SpecCardSelect, SoundCategory.SpecCard);
             EventBus.Publish(new SpecCardChosenEvent { CardIndex = index });
-           
-            if (_panel != null) _panel.SetActive(false);
 
+            // v1.0: leveling up no longer pauses the run, so multiple offers can
+            // stack up while the player is away (see [[etd-v1-full-release]] Phase 4).
+            // SpecCardChosenEvent above resolves synchronously, so PendingOfferCount
+            // already reflects the queue with this offer popped — if another offer
+            // is waiting, show it immediately instead of closing.
+            if (_runManager != null && _runManager.PendingOfferCount > 0)
+            {
+                ShowCards(_runManager.RunData != null ? _runManager.RunData.Level : 0);
+            }
+            else if (_panel != null)
+            {
+                _panel.SetActive(false);
+            }
         }
 
         private void OnRerollClicked()

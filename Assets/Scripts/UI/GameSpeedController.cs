@@ -1,6 +1,6 @@
 // ============================================================================
 // ETD.UI - GameSpeedController.cs  [NEW]
-// Toggles game speed: 1x → 1.5x → 2x → 3x → 1x
+// Toggles game speed: 1x → 2x → 4x → 1x
 // Displays current speed on a button. Uses Time.timeScale.
 // Resets to 1x when paused or game over.
 // ============================================================================
@@ -18,7 +18,7 @@ namespace ETD.UI
         [SerializeField] private TMP_Text _speedText;
 
         [Header("Settings")]
-        [SerializeField] private float[] _speedOptions = { 1f, 1.5f, 2f, 3f };
+        [SerializeField] private float[] _speedOptions = { 1f, 2f, 4f };
 
         private int _currentIndex;
         private bool _isPaused;

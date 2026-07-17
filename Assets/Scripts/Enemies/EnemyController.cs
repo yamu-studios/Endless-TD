@@ -30,6 +30,14 @@ namespace ETD.Enemies
         public bool IsRevealed { get; set; }
         public bool IsDead { get; private set; }
 
+        // Tracks the most recent hit regardless of source (direct/projectile, laser
+        // tick, chain lightning, burn/DoT tick, evolved area splash). Death Explosion
+        // reads this at the moment of death so it can proc off ANY kill type, not just
+        // primary projectile hits.
+        public float LastHitDamage { get; private set; }
+        public int LastHitSourceTurretType { get; private set; } = -1;
+        public int LastHitSourceTurretId { get; private set; } = -1;
+
         public EnemyData splitChildData;
 
         // Path
@@ -40,20 +48,6 @@ namespace ETD.Enemies
         // Remaining path distance (world units) from each waypoint to the exit.
         // Precomputed on path assignment so DistanceToExit stays O(1) per query.
         private readonly List<float> _remainingToExit = new();
-
-        // Path origin (entry node). Spawn-corridor protection is measured from here.
-        private Vector3 _spawnPosition;
-
-        /// <summary>World position of this enemy's path origin (entry/spawn node).</summary>
-        public Vector3 SpawnPosition => _spawnPosition;
-
-        /// <summary>
-        /// Global spawn-protection radius (squared), set by EnemyManager from its
-        /// serialized _spawnProtectionDistance. While an enemy is within this distance
-        /// of its path origin it is not a valid COMBAT target, so range upgrades can't
-        /// delete enemies inside the spawn corridor / offscreen. 0 disables the rule.
-        /// </summary>
-        public static float SpawnProtectionDistanceSqr;
 
         // Centralized enemy modifiers/statuses.
         private readonly EnemyModifierStack _modifiers = new();
@@ -137,7 +131,6 @@ namespace ETD.Enemies
             for (int i = 0; i < gridPath.Count; i++)
                 _worldPath.Add(grid.GridToWorld(gridPath[i]));
 
-            _spawnPosition = _worldPath.Count > 0 ? _worldPath[0] : Vector3.zero;
             BuildRemainingToExit();
 
             _pathIndex = 0;
@@ -265,22 +258,6 @@ namespace ETD.Enemies
             }
         }
 
-        /// <summary>
-        /// False while the enemy is still inside the spawn-protection radius of its path
-        /// origin. Combat targeting queries and turret validation honor this so range
-        /// upgrades cannot snipe enemies at the spawn/offscreen corridor.
-        /// </summary>
-        public bool IsTargetable
-        {
-            get
-            {
-                if (SpawnProtectionDistanceSqr <= 0f) return true;
-                Vector3 pos = (_cachedTransform != null ? _cachedTransform : transform).position;
-                float dx = pos.x - _spawnPosition.x, dz = pos.z - _spawnPosition.z;
-                return ((dx * dx) + (dz * dz)) >= SpawnProtectionDistanceSqr;
-            }
-        }
-
         // =================================================================
         // UPDATE
         // =================================================================
@@ -291,6 +268,13 @@ namespace ETD.Enemies
 
             UpdateStatusEffects(deltaTime);
             Move(deltaTime);
+
+            if (Data != null && Data.Type == EnemyType.Regenerator && Data.RegenPercentPerSecond > 0f
+                && CurrentHealth < MaxHealth)
+            {
+                CurrentHealth = Mathf.Min(MaxHealth,
+                    CurrentHealth + MaxHealth * Data.RegenPercentPerSecond * deltaTime);
+            }
         }
 
         // =================================================================
@@ -372,8 +356,11 @@ namespace ETD.Enemies
             if (IsDead)
                 return;
 
-            float effectiveDamage = Mathf.Max(damage - Armor, 1f);
+            float effectiveDamage = Mathf.Max(ApplyMitigation(damage, sourceTurretType), 1f);
             CurrentHealth -= effectiveDamage;
+            LastHitDamage = effectiveDamage;
+            LastHitSourceTurretType = sourceTurretType;
+            LastHitSourceTurretId = sourceTurretId;
             ReportDamageStats(effectiveDamage, damageKind, sourceTurretType, sourceTurretId);
 
             if (showDamageNumber)
@@ -396,6 +383,9 @@ namespace ETD.Enemies
 
             float effectiveDamage = Mathf.Max(0f, damage);
             CurrentHealth -= effectiveDamage;
+            LastHitDamage = effectiveDamage;
+            LastHitSourceTurretType = sourceTurretType;
+            LastHitSourceTurretId = sourceTurretId;
             ReportDamageStats(effectiveDamage, DamageNumberKind.Pure, sourceTurretType, sourceTurretId);
 
             if (showDamageNumber)
@@ -447,7 +437,7 @@ namespace ETD.Enemies
             if (IsDead)
                 return;
 
-            float effectiveDamage = Mathf.Max(damage - Armor, 1f) * GetExposureMultiplier();
+            float effectiveDamage = Mathf.Max(ApplyMitigation(damage, sourceTurretType), 1f) * GetExposureMultiplier();
             CurrentHealth -= effectiveDamage;
 
             if (CurrentHealth > 0f && remainingHpPercentDamage > 0f)
@@ -464,6 +454,9 @@ namespace ETD.Enemies
                     EventBus.Publish(new PercentHPDamageEvent { DamageAmount = percentDamage });
             }
 
+            LastHitDamage = effectiveDamage;
+            LastHitSourceTurretType = sourceTurretType;
+            LastHitSourceTurretId = sourceTurretId;
             ReportDamageStats(effectiveDamage, DamageNumberKind.Chain, sourceTurretType, sourceTurretId);
 
             if (showDamageNumber)
@@ -636,6 +629,69 @@ namespace ETD.Enemies
             return 1f + mods.GetSupportExposure();
         }
 
+        /// <summary>
+        /// Turret-type affinity resistance/weakness this enemy has against the given
+        /// source turret type. Positive = damage reduction, negative = bonus damage
+        /// taken (weakness). Linear scan is fine — Affinities is a handful of entries
+        /// at most, set once per enemy in the inspector.
+        /// </summary>
+        private float GetAffinityResistance(int sourceTurretType)
+        {
+            var affinities = Data != null ? Data.Affinities : null;
+            if (affinities == null || sourceTurretType < 0)
+                return 0f;
+
+            for (int i = 0; i < affinities.Length; i++)
+            {
+                if ((int)affinities[i].Type == sourceTurretType)
+                    return affinities[i].ResistancePercent;
+            }
+
+            return 0f;
+        }
+
+        /// <summary>
+        /// v1.0 mitigation pipeline: base damage -> turret-type affinity resistance ->
+        /// Armor reduction. Each layer is independently reduced by its own pierce stat
+        /// (AffinityPierce / ArmorPierce) before being applied, so armor-piercing
+        /// content bypasses Armor without touching affinity and vice versa. Weakness
+        /// (negative affinity) is never pierced away since piercing only reduces
+        /// resistance, not amplify weakness. Does not touch pure/true damage sources
+        /// (TakePureDamage, ApplyNonLethalDecay) — those already bypass mitigation by
+        /// design.
+        /// </summary>
+        private float ApplyMitigation(float rawDamage, int sourceTurretType)
+        {
+            if (rawDamage <= 0f)
+                return rawDamage;
+
+            float affinity = GetAffinityResistance(sourceTurretType);
+            float armor = Armor;
+
+            // Void turret's Weaken status: a generic timed value (like Slow/Freeze,
+            // no dedicated tick system needed) that directly corrodes effective Armor.
+            if (_modifiers.TryGetStatusValue(StatusEffectType.Weaken, out float weaken))
+                armor = Mathf.Max(0f, armor - weaken);
+
+            if (ServiceLocator.TryGet<IRunStatModifiers>(out var mods))
+            {
+                if (affinity > 0f)
+                    affinity = Mathf.Max(0f, affinity - mods.GetAffinityPierce());
+                armor = Mathf.Max(0f, armor - mods.GetArmorPierce());
+            }
+
+            affinity = Mathf.Clamp(affinity, -1f, 0.9f);
+            armor = Mathf.Clamp(armor, 0f, 0.9f);
+
+            // Railgun's Expose status: amplifies all mitigated damage taken. Applied
+            // last, after affinity/armor reduction, so it scales the target's
+            // remaining effective HP rather than being cancelled out by resistance.
+            float expose = _modifiers.TryGetStatusValue(StatusEffectType.Expose, out float exposeValue)
+                ? Mathf.Max(0f, exposeValue) : 0f;
+
+            return rawDamage * (1f - affinity) * (1f - armor) * (1f + expose);
+        }
+
         private void ApplyBurnDamage(float damage, int sourceTurretType, int sourceTurretId)
         {
             if (IsDead || damage <= 0f)
@@ -643,6 +699,9 @@ namespace ETD.Enemies
 
             damage *= GetExposureMultiplier();
             CurrentHealth -= damage;
+            LastHitDamage = damage;
+            LastHitSourceTurretType = sourceTurretType;
+            LastHitSourceTurretId = sourceTurretId;
             ReportDamageStats(damage, DamageNumberKind.Burn, sourceTurretType, sourceTurretId);
             PublishDamageNumber(damage, DamageNumberKind.Burn, false, CurrentHealth <= 0f);
             if (CurrentHealth <= 0f && !IsDead)
@@ -694,6 +753,70 @@ namespace ETD.Enemies
                 Position = transform.position,
                 EnemyTier = (int)Tier
             });
+
+            TryTriggerDeathExplosion();
+        }
+
+        // Reentrancy guard: a Death Explosion splash can itself kill nearby enemies,
+        // which would otherwise recursively roll their own explosions and cascade
+        // through a dense pack. One proc per original kill; splash kills still count
+        // as normal kills (gold/XP/events) but do not chain further explosions.
+        private static bool s_resolvingDeathExplosion;
+        private static readonly List<EnemyController> s_deathExplosionTargets = new(16);
+
+        /// <summary>
+        /// Death Explosion (Explosion spec card): a chance for a kill to splash damage
+        /// to nearby enemies. Reads LastHit* so it procs off the ACTUAL kill type
+        /// (direct/projectile hit, laser tick, chain lightning, burn/DoT tick, or an
+        /// evolved area splash), not just primary turret hits.
+        /// </summary>
+        private void TryTriggerDeathExplosion()
+        {
+            if (s_resolvingDeathExplosion)
+                return;
+
+            if (LastHitSourceTurretType < 0 || LastHitDamage <= 0f)
+                return;
+
+            if (!ServiceLocator.TryGet<IRunStatModifiers>(out var mods))
+                return;
+
+            float chance = Mathf.Clamp01(mods.GetDeathExplosionChance());
+            if (chance <= 0f || Random.value > chance)
+                return;
+
+            EnemyManager manager = EnemyManager.Instance;
+            if (manager == null)
+                return;
+
+            const float radius = 2.25f;
+            const float damagePercent = 0.8f;
+            float splashDamage = LastHitDamage * damagePercent;
+            if (splashDamage <= 0f)
+                return;
+
+            Vector3 center = hitTransform != null ? hitTransform.position : transform.position;
+            int sourceTurretType = LastHitSourceTurretType;
+            int sourceTurretId = LastHitSourceTurretId;
+
+            s_resolvingDeathExplosion = true;
+            try
+            {
+                manager.GetEnemiesInRange(center, radius, s_deathExplosionTargets);
+                for (int i = 0; i < s_deathExplosionTargets.Count; i++)
+                {
+                    EnemyController enemy = s_deathExplosionTargets[i];
+                    if (enemy == null || enemy == this || enemy.IsDead)
+                        continue;
+
+                    enemy.TakeDamage(splashDamage, damageKind: DamageNumberKind.Area,
+                        sourceTurretType: sourceTurretType, sourceTurretId: sourceTurretId);
+                }
+            }
+            finally
+            {
+                s_resolvingDeathExplosion = false;
+            }
         }
 
         /// <summary>

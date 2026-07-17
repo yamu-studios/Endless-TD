@@ -148,6 +148,13 @@ namespace ETD.EditorTools
                     if (GUILayout.Button("ACH_ALL_EFFECTS")) TestUnlock("ACH_ALL_EFFECTS");
                     if (GUILayout.Button("ACH_LIGHTNING_NETWORK")) TestUnlock("ACH_LIGHTNING_NETWORK");
                 }
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    if (GUILayout.Button("ACH_VOID_WALKER")) TestUnlock("ACH_VOID_WALKER");
+                    if (GUILayout.Button("ACH_TOXIC_TOUCH")) TestUnlock("ACH_TOXIC_TOUCH");
+                    if (GUILayout.Button("ACH_MARKED_FOR_DEATH")) TestUnlock("ACH_MARKED_FOR_DEATH");
+                    if (GUILayout.Button("ACH_CUTTING_EDGE")) TestUnlock("ACH_CUTTING_EDGE");
+                }
             }
         }
 

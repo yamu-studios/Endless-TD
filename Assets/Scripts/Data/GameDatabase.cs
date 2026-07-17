@@ -20,6 +20,9 @@ namespace ETD.Data
         [Header("Spec Cards")]
         public SpecCardData[] SpecCards;
 
+        [Header("Spells")]
+        public SpellData[] Spells;
+
         [Header("Challenges")]
         public ChallengeData[] Challenges;
 
@@ -34,6 +37,7 @@ namespace ETD.Data
         private Dictionary<string, TurretData> _turretLookup;
         private Dictionary<string, TraitData> _traitLookup;
         private Dictionary<string, SpecCardData> _specCardLookup;
+        private Dictionary<string, SpellData> _spellLookup;
         private Dictionary<DynamicTileType, DynamicTileData> _tileLookup;
 
         public ChallengeData GetChallenge(string id)
@@ -66,6 +70,12 @@ namespace ETD.Data
         {
             _specCardLookup ??= BuildStringLookup(SpecCards, s => s.Id, "SpecCards");
             return TryGet(_specCardLookup, id, "SpecCard");
+        }
+
+        public SpellData GetSpell(string id)
+        {
+            _spellLookup ??= BuildStringLookup(Spells, s => s.Id, "Spells");
+            return TryGet(_spellLookup, id, "Spell");
         }
 
         public DynamicTileData GetDynamicTile(DynamicTileType type)

@@ -116,6 +116,15 @@ namespace ETD.Core
     }
     public struct ShowEvolveChoiceEvent { public int TurretId; }
 
+    // v1.0: level-25 shared second evolution tier (converges from either Path A or
+    // B chosen at the first evolution, so unlike ShowEvolveChoiceEvent there is no
+    // path to pick — this is a single confirm, not an A/B choice). See [[etd-v1-full-release]].
+    public struct ShowEvolveTier2ChoiceEvent { public int TurretId; }
+
+    // v1.0 active spell system. Published by SpellManager.TryCast() on a successful
+    // cast (UI/VFX/achievement hooks). See [[etd-v1-full-release]] Phase 2.
+    public struct SpellCastEvent { public string SpellId; }
+
     public struct SettingToggleEvent { public bool IsActive; }
 
 
