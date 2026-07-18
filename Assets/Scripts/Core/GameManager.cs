@@ -35,6 +35,14 @@ namespace ETD.Core
         public int LastGameOverSequence { get; private set; }
         public int RunSessionId { get; private set; }
 
+        /// <summary>
+        /// True while a sandboxed tutorial run is active (see [[etd-v1-full-release]]
+        /// tutorial redesign). Checked by SaveSystem.Save (skips the disk write) and
+        /// SteamAchievementManager (skips real unlocks) so nothing from a practice
+        /// session leaks into real progression. Reset whenever LoadHub runs.
+        /// </summary>
+        public bool IsTutorialMode { get; private set; }
+
         private GameState _stateBeforeModal;
 
 
@@ -130,6 +138,13 @@ namespace ETD.Core
             LastGameOverScore = 0;
             LastGameOverWavesCompleted = 0;
 
+            // Discard any in-memory-only save mutations from a tutorial session —
+            // SaveSystem.Save() never wrote them to disk while IsTutorialMode was true,
+            // but the cached in-memory SaveData may still hold them.
+            if (IsTutorialMode)
+                SaveSystem.ReloadFromDisk();
+            IsTutorialMode = false;
+
             AudioManager.Instance?.StopAllGameSounds();
 
             EventBus.Clear();
@@ -167,6 +182,38 @@ namespace ETD.Core
 
             // Prevent the old scene from continuing while the loading screen is visible.
             Time.timeScale = 0f;
+
+            if (SceneLoader.Instance != null)
+            {
+                SceneLoader.Instance.LoadScene(_gameScene, freezeDuringLoad: true, timeScaleAfterLoad: 1f);
+            }
+            else
+            {
+                SceneManager.LoadScene(_gameScene);
+                Time.timeScale = 1f;
+            }
+        }
+
+        /// <summary>
+        /// Launches the sandboxed practice tutorial (see [[etd-v1-full-release]]
+        /// tutorial redesign) — same Game scene as a real run, but IsTutorialMode
+        /// gates persistence (SaveSystem.Save, Steam achievement unlocks) and
+        /// RunManager grants a huge gold/lives buffer so nothing needs real economy.
+        /// </summary>
+        public void LoadTutorial()
+        {
+            IsTutorialMode = true;
+            RunSessionId++;
+            HasLastGameOverResult = false;
+            LastGameOverScore = 0;
+            LastGameOverWavesCompleted = 0;
+
+            DemoMode.ResetCompletionForNewRun();
+
+            SetState(GameState.Preparation);
+            Time.timeScale = 0f;
+
+            PlayerPrefs.SetInt("ResumeRun", 0);
 
             if (SceneLoader.Instance != null)
             {

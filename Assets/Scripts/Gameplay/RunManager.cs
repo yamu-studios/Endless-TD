@@ -96,7 +96,17 @@ namespace ETD.Gameplay
             {
                 _runData.ActiveTraitIds = new List<string>(save.SelectedTraitIds);
             }
-           
+
+            // Sandboxed tutorial run (see [[etd-v1-full-release]] tutorial redesign):
+            // huge gold/lives buffer so nothing in the practice session is gated by
+            // real economy or risks an accidental game over mid-lesson.
+            if (GameManager.Instance != null && GameManager.Instance.IsTutorialMode)
+            {
+                _runData.Gold = 999999;
+                _runData.MaxLives = 999999;
+                _runData.Lives = 999999;
+            }
+
 
 
             ServiceLocator.Register(this);

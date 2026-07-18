@@ -143,6 +143,14 @@ namespace ETD.Core
         Planning, Challenges, Shop, Turrets, Settings, Language
     }
 
+    // Published by PlanningTabSwitcher when the Planning window's Traits/Spells
+    // sub-tab toggle is clicked. Used by HubTutorialAnimator to know when the
+    // spell picker becomes visible.
+    public struct SpellsViewToggledEvent
+    {
+        public bool ShowingSpells;
+    }
+
 
 
     public enum UnlockType

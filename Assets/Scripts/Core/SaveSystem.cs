@@ -206,6 +206,14 @@ namespace ETD.Core
 
             Normalize(data);
             _cachedData = data;
+
+            // Sandboxed tutorial run (see [[etd-v1-full-release]] tutorial redesign):
+            // keep mutations in memory for the session (so the tutorial's economy/spec
+            // cards/etc. behave normally) but never persist them to disk. GameManager
+            // discards the in-memory copy via ReloadFromDisk() when returning to Hub.
+            if (GameManager.Instance != null && GameManager.Instance.IsTutorialMode)
+                return;
+
             JsonSaveSystem.Save(SavePaths.UnifiedSavePath, data);
         }
 

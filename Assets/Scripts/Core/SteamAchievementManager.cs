@@ -120,6 +120,11 @@ namespace ETD.Core
             if (string.IsNullOrWhiteSpace(apiName))
                 return;
 
+            // Sandboxed tutorial run (see [[etd-v1-full-release]] tutorial redesign)
+            // must never grant real Steam achievements.
+            if (GameManager.Instance != null && GameManager.Instance.IsTutorialMode)
+                return;
+
 #if !DISABLESTEAMWORKS
             if (!SteamManager.Initialized)
             {

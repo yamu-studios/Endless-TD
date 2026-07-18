@@ -28,6 +28,11 @@ namespace ETD.Hub
         public string SpellId { get; private set; }
         public bool IsSelected { get; private set; }
 
+        /// <summary>Fired after this item is clicked and selected. Used by
+        /// HubTutorialAnimator to detect "player picked a spell" without coupling
+        /// to SpellPlanningUI directly (mirrors PlanningTabItem.OnSelectedCallback).</summary>
+        public System.Action<string> OnSelectedCallback;
+
         private System.Action<string> _onClicked;
 
         public void Setup(SpellData spell, bool isSelected, System.Action<string> onClicked)
@@ -44,7 +49,11 @@ namespace ETD.Hub
             if (_button != null)
             {
                 _button.onClick.RemoveAllListeners();
-                _button.onClick.AddListener(() => _onClicked?.Invoke(SpellId));
+                _button.onClick.AddListener(() =>
+                {
+                    _onClicked?.Invoke(SpellId);
+                    OnSelectedCallback?.Invoke(SpellId);
+                });
             }
 
             SetSelected(isSelected);

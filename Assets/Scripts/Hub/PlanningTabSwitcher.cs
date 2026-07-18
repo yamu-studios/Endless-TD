@@ -24,6 +24,11 @@ namespace ETD.Hub
 
         private bool _showingSpells;
 
+        /// <summary>Exposed for HubTutorialAnimator to pulse the toggle button.</summary>
+        public Button ToggleButton => _toggleButton;
+        /// <summary>Exposed for HubTutorialAnimator to find a spell item to pulse.</summary>
+        public SpellPlanningUI SpellPlanningUI => _spellPlanningUI;
+
         private void OnEnable()
         {
             _showingSpells = false;
@@ -36,6 +41,7 @@ namespace ETD.Hub
         {
             _showingSpells = !_showingSpells;
             Apply();
+            EventBus.Publish(new SpellsViewToggledEvent { ShowingSpells = _showingSpells });
         }
 
         private void Apply()

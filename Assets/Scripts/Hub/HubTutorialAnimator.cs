@@ -1,9 +1,11 @@
 // ============================================================================
-// ETD.Hub - HubTutorialAnimator.cs  [NEW]
-// First-ever hub visit:
-//   1. Pulses Planning button scale until player clicks it
-//   2. After Planning opens, pulses first unlocked trait's checkmark until selected
-//   3. Done — marks hub tutorial seen
+// ETD.Hub - HubTutorialAnimator.cs  [REWRITTEN v1.0 tutorial redesign]
+// On-demand guided flow, started only by clicking the Hub "Tutorial" button
+// (see [[etd-v1-full-release]]) — no longer auto-triggers on first Hub visit.
+//   1. Open Planning, pulse first unlocked trait until selected
+//   2. Pulse the Spells toggle until clicked
+//   3. Pulse the first spell item until selected
+//   4. Launch the sandboxed tutorial run (GameManager.LoadTutorial)
 // ============================================================================
 using System.Collections;
 using UnityEngine;
@@ -17,59 +19,60 @@ namespace ETD.Hub
         [Header("References")]
         [SerializeField] private Button           _planningButton;
         [SerializeField] private PlanningWindowUI _planningWindow;
+        [SerializeField] private HubBadge         _newBadge;
 
         [Header("Pulse Settings")]
         [SerializeField] private float _scaleMin    = 0.92f;
         [SerializeField] private float _scaleMax    = 1.10f;
         [SerializeField] private float _scaleMaxInTab    = 1.10f;
         [SerializeField] private float _pulsePeriod = 0.65f;
+        [SerializeField] private float _launchDelay = 0.6f;
 
         private Coroutine _pulseCoroutine;
-        private bool      _hubTutorialDone;
+        private bool      _flowActive;
+        private PlanningTabSwitcher _tabSwitcher;
 
         private void Start()
         {
-            var save = SaveSystem.Load();
-            if (save.HubTutorialSeen) return;
-
-            EventBus.Subscribe<HubWindowOpenedEvent>(OnHubWindowOpened);
-            StartPlanningPulse();
+            RefreshBadge();
         }
 
-        // =================================================================
-        // STEP 1: Pulse Planning button
-        // =================================================================
-
-        private void StartPlanningPulse()
+        private void RefreshBadge()
         {
-            if (_planningButton == null) return;
-            if (_pulseCoroutine != null) StopCoroutine(_pulseCoroutine);
-            _pulseCoroutine = StartCoroutine(PulseTransform(
-                _planningButton.transform, _scaleMin, _scaleMax, _pulsePeriod));
+            var save = SaveSystem.Load();
+            _newBadge?.SetVisible(!save.HubTutorialSeen);
+        }
+
+        /// <summary>Called by the Hub "Tutorial" button's onClick.</summary>
+        public void StartGuidedFlow()
+        {
+            if (_flowActive) return;
+            _flowActive = true;
+
+            EventBus.Subscribe<HubWindowOpenedEvent>(OnWindowOpened);
+            EventBus.Subscribe<SpellsViewToggledEvent>(OnSpellsViewToggled);
+
+            HubController.Instance?.OnPlanningClicked();
+            // OnPlanningClicked already publishes HubWindowOpenedEvent(Planning),
+            // which OnWindowOpened below reacts to.
         }
 
         // =================================================================
-        // STEP 2: Planning opened → pulse first unlocked trait item
+        // STEP 1: Planning opened -> pulse first unlocked trait item
         // =================================================================
 
-        private void OnHubWindowOpened(HubWindowOpenedEvent evt)
+        private void OnWindowOpened(HubWindowOpenedEvent evt)
         {
             if (evt.WindowType != HubWindowType.Planning) return;
-
-            // Stop planning button pulse
-            StopPulse(_planningButton?.transform);
-
-            // Wait one frame so PlanningWindowUI generates items
             StartCoroutine(WaitAndPulseFirstTrait());
         }
 
         private IEnumerator WaitAndPulseFirstTrait()
         {
-            yield return null; // let OnEnable generate list
+            yield return null; // let OnEnable generate the trait list
 
-            if (_planningWindow == null) yield break;
+            if (_planningWindow == null) { AdvanceToSpells(); yield break; }
 
-            // Find first unlocked, unselected trait item
             PlanningTabItem firstUnlocked = null;
             foreach (var item in _planningWindow.TabItems)
             {
@@ -80,47 +83,112 @@ namespace ETD.Hub
                 }
             }
 
-            if (firstUnlocked == null) { MarkDone(); yield break; }
-
-            // Pulse the checkmark button specifically
-            Transform target =  firstUnlocked.transform; //firstUnlocked.CheckmarkButtonTransform ??
+            if (firstUnlocked == null) { AdvanceToSpells(); yield break; }
 
             if (_pulseCoroutine != null) StopCoroutine(_pulseCoroutine);
-            _pulseCoroutine = StartCoroutine(PulseTransform(target, _scaleMin, _scaleMaxInTab, _pulsePeriod));
+            _pulseCoroutine = StartCoroutine(PulseTransform(firstUnlocked.transform, _scaleMin, _scaleMaxInTab, _pulsePeriod));
 
-            // Wait for trait to be selected
             firstUnlocked.OnSelectedCallback += OnTraitSelected;
         }
 
         private void OnTraitSelected(string traitId)
         {
-            StopPulse(null);
-            MarkDone();
+            StopPulse();
+            AdvanceToSpells();
+        }
+
+        // =================================================================
+        // STEP 2: pulse the Spells toggle until clicked
+        // =================================================================
+
+        private void AdvanceToSpells()
+        {
+            _tabSwitcher = FindFirstObjectByType<PlanningTabSwitcher>();
+            var toggle = _tabSwitcher != null ? _tabSwitcher.ToggleButton : null;
+            if (toggle == null) { FinishFlow(); return; }
+
+            if (_pulseCoroutine != null) StopCoroutine(_pulseCoroutine);
+            _pulseCoroutine = StartCoroutine(PulseTransform(toggle.transform, _scaleMin, _scaleMax, _pulsePeriod));
+        }
+
+        private void OnSpellsViewToggled(SpellsViewToggledEvent evt)
+        {
+            if (!evt.ShowingSpells) return;
+            StopPulse();
+            StartCoroutine(WaitAndPulseFirstSpell());
+        }
+
+        // =================================================================
+        // STEP 3: pulse the first spell item until selected
+        // =================================================================
+
+        private IEnumerator WaitAndPulseFirstSpell()
+        {
+            yield return null; // let SpellPlanningUI.Refresh() run
+
+            var spellUI = _tabSwitcher != null ? _tabSwitcher.SpellPlanningUI : null;
+            if (spellUI == null) { FinishFlow(); yield break; }
+
+            SpellTabItem firstUnselected = null;
+            foreach (var item in spellUI.Items)
+            {
+                if (item != null && !item.IsSelected)
+                {
+                    firstUnselected = item;
+                    break;
+                }
+            }
+
+            if (firstUnselected == null) { FinishFlow(); yield break; }
+
+            if (_pulseCoroutine != null) StopCoroutine(_pulseCoroutine);
+            _pulseCoroutine = StartCoroutine(PulseTransform(firstUnselected.transform, _scaleMin, _scaleMaxInTab, _pulsePeriod));
+
+            firstUnselected.OnSelectedCallback += OnSpellSelected;
+        }
+
+        private void OnSpellSelected(string spellId)
+        {
+            StopPulse();
+            FinishFlow();
+        }
+
+        // =================================================================
+        // STEP 4: launch the sandboxed tutorial run
+        // =================================================================
+
+        private void FinishFlow()
+        {
+            MarkSeen();
+            EventBus.Unsubscribe<HubWindowOpenedEvent>(OnWindowOpened);
+            EventBus.Unsubscribe<SpellsViewToggledEvent>(OnSpellsViewToggled);
+            StartCoroutine(LaunchAfterDelay());
+        }
+
+        private IEnumerator LaunchAfterDelay()
+        {
+            yield return new WaitForSecondsRealtime(_launchDelay);
+            GameManager.Instance?.LoadTutorial();
         }
 
         // =================================================================
         // HELPERS
         // =================================================================
 
-        private void MarkDone()
+        private void MarkSeen()
         {
-            _hubTutorialDone = true;
-            EventBus.Unsubscribe<HubWindowOpenedEvent>(OnHubWindowOpened);
+            _flowActive = false;
 
             var save = SaveSystem.Load();
             save.HubTutorialSeen = true;
             SaveSystem.Save(save);
+            RefreshBadge();
         }
 
-        private void StopPulse(Transform t)
+        private void StopPulse()
         {
             if (_pulseCoroutine != null) StopCoroutine(_pulseCoroutine);
             _pulseCoroutine = null;
-
-            if (t != null) t.localScale = Vector3.one;
-            // Also reset planning button
-            if (_planningButton != null)
-                _planningButton.transform.localScale = Vector3.one;
         }
 
         private IEnumerator PulseTransform(Transform t, float min, float max, float period)
@@ -142,7 +210,8 @@ namespace ETD.Hub
 
         private void OnDestroy()
         {
-            EventBus.Unsubscribe<HubWindowOpenedEvent>(OnHubWindowOpened);
+            EventBus.Unsubscribe<HubWindowOpenedEvent>(OnWindowOpened);
+            EventBus.Unsubscribe<SpellsViewToggledEvent>(OnSpellsViewToggled);
         }
     }
 }

@@ -30,6 +30,9 @@ namespace ETD.Hub
 
         private string _selectedSpellId;
 
+        /// <summary>Exposed for HubTutorialAnimator to find an item to pulse.</summary>
+        public System.Collections.Generic.IReadOnlyList<SpellTabItem> Items => _items;
+
         private void OnEnable() => Refresh();
 
         public void Refresh()
