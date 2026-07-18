@@ -50,6 +50,13 @@ namespace ETD.UI
         [SerializeField] private Image _evolvePathBIcon;
         [SerializeField] private TMP_Text _evolvePathBText;
 
+        [Header("Evolution Tier 2")]
+        [Tooltip("Single-confirm panel for the level-25 shared Tier2 evolution (no path choice).")]
+        [SerializeField] private GameObject _evolveTier2Panel;
+        [SerializeField] private Button _evolveTier2ConfirmButton;
+        [SerializeField] private Image _evolveTier2Icon;
+        [SerializeField] private TMP_Text _evolveTier2Text;
+
         [Header("Targeting Priority")]
         [Tooltip("Optional: a TMP_Dropdown listing the priorities. Assign this OR the cycle button (or both).")]
         [SerializeField] private TMP_Dropdown _targetingDropdown;
@@ -85,11 +92,13 @@ namespace ETD.UI
 
             if (_panel != null) _panel.SetActive(false);
             if (_evolvePanel != null) _evolvePanel.SetActive(false);
+            if (_evolveTier2Panel != null) _evolveTier2Panel.SetActive(false);
 
             _upgradeButton?.onClick.AddListener(OnUpgradeClicked);
             _sellButton?.onClick.AddListener(OnSellClicked);
             _evolvePathAButton?.onClick.AddListener(() => OnEvolveClicked(0));
             _evolvePathBButton?.onClick.AddListener(() => OnEvolveClicked(1));
+            _evolveTier2ConfirmButton?.onClick.AddListener(OnEvolveTier2Clicked);
 
             if (_targetingDropdown != null)
             {
@@ -102,6 +111,7 @@ namespace ETD.UI
             EventBus.Subscribe<TurretDeselectedEvent>(OnTurretDeselected);
             EventBus.Subscribe<TurretUpgradedEvent>(OnTurretUpgraded);
             EventBus.Subscribe<ShowEvolveChoiceEvent>(OnShowEvolve);
+            EventBus.Subscribe<ShowEvolveTier2ChoiceEvent>(OnShowEvolveTier2);
             EventBus.Subscribe<GoldChangedEvent>(OnGoldChanged);
             EventBus.Subscribe<WaveStartedEvent>(OnWaveStarted);
             EventBus.Subscribe<PrepPhaseStartedEvent>(OnPrepPhaseStarted);
@@ -169,12 +179,21 @@ namespace ETD.UI
 
         private void OnTurretDeselected(TurretDeselectedEvent evt)
         {
-            // If evolve panel was open, restore game state before hiding
+            // If an evolve panel was open, restore game state before hiding
+            bool hadOpenEvolvePanel = false;
             if (_evolvePanel != null && _evolvePanel.activeSelf)
             {
                 _evolvePanel.SetActive(false);
-                GameManager.Instance.PopModalState();
+                hadOpenEvolvePanel = true;
             }
+            if (_evolveTier2Panel != null && _evolveTier2Panel.activeSelf)
+            {
+                _evolveTier2Panel.SetActive(false);
+                hadOpenEvolvePanel = true;
+            }
+            if (hadOpenEvolvePanel)
+                GameManager.Instance.PopModalState();
+
             if (_panel != null) _panel.SetActive(false);
             _selectedTurret = null;
             _selectedTurretId = -1;
@@ -186,6 +205,13 @@ namespace ETD.UI
         {
             if (_evolvePanel == null || !_evolvePanel.activeSelf) return;
             OnEvolveClicked(path);
+        }
+
+        /// <summary>Called by KeyboardShortcuts (key 1 during the Tier2 single-confirm evolve choice)</summary>
+        public void ConfirmTier2ByKey()
+        {
+            if (_evolveTier2Panel == null || !_evolveTier2Panel.activeSelf) return;
+            OnEvolveTier2Clicked();
         }
 
         /// <summary>Called by KeyboardShortcuts (key Q)</summary>
@@ -279,6 +305,50 @@ namespace ETD.UI
                 if (_evolvePathBIcon != null)
                     _evolvePathBIcon.sprite = data.PathB.Icon;
             }
+        }
+
+        /// <summary>
+        /// v1.0 level-25 shared Tier2 evolution. Unlike OnShowEvolve, there's no
+        /// path A/B choice — Tier2 converges from whichever path was already chosen,
+        /// so this just shows a single confirm with the Tier2 name/icon.
+        /// </summary>
+        private void OnShowEvolveTier2(ShowEvolveTier2ChoiceEvent evt)
+        {
+            if (_selectedTurret == null || _selectedTurret.InstanceId != evt.TurretId)
+                return;
+
+            var data = _selectedTurret.Data;
+            if (data == null || data.Tier2 == null)
+                return;
+
+            if (_evolveTier2Panel != null)
+                _evolveTier2Panel.SetActive(true);
+
+            string baseKey = "turret_" + data.LocalizationKey;
+
+            if (_evolveTier2Text != null)
+            {
+                string name = SOLocalization.GetName(baseKey + "_tier2", data.Tier2.Name);
+                string costLabel = LocalizationManager.GetFormat(
+                    "turret_info_evolve_tier2_cost_format", "Evolve Cost: {0}", _selectedTurret.GetTier2EvolveCost());
+                _evolveTier2Text.text = name + "\n" + costLabel;
+            }
+
+            if (_evolveTier2Icon != null)
+                _evolveTier2Icon.sprite = data.Tier2.Icon;
+
+            RefreshTier2Affordability();
+        }
+
+        private void RefreshTier2Affordability()
+        {
+            if (_evolveTier2ConfirmButton == null || _selectedTurret == null)
+                return;
+
+            int cost = _selectedTurret.GetTier2EvolveCost();
+            _evolveTier2ConfirmButton.interactable = _runManager != null
+                && _runManager.RunData != null
+                && _runManager.RunData.Gold >= cost;
         }
 
         private void RefreshInfo()
@@ -524,7 +594,29 @@ namespace ETD.UI
             RefreshInfo();
         }
 
-        private void OnGoldChanged(GoldChangedEvent evt) => RefreshOpenPanel();
+        private void OnEvolveTier2Clicked()
+        {
+            if (!ResolveSelectedTurret() || _runManager == null) return;
+
+            int cost = _selectedTurret.GetTier2EvolveCost();
+            if (!_runManager.SpendGold(cost)) return;
+
+            if (ServiceLocator.TryGet<TurretManager>(out var mgr))
+                mgr.EvolveTurretTier2(_selectedTurret.InstanceId);
+
+            if (_evolveTier2Panel != null) _evolveTier2Panel.SetActive(false);
+
+            // Restore whatever state we were in before evolve (Prep OR WaveActive)
+            GameManager.Instance.PopModalState();
+            RefreshInfo();
+        }
+
+        private void OnGoldChanged(GoldChangedEvent evt)
+        {
+            RefreshOpenPanel();
+            if (_evolveTier2Panel != null && _evolveTier2Panel.activeSelf)
+                RefreshTier2Affordability();
+        }
         private void OnWaveStarted(WaveStartedEvent evt) => RefreshOpenPanel();
         private void OnPrepPhaseStarted(PrepPhaseStartedEvent evt) => RefreshOpenPanel();
         private void OnGameStateChanged(GameStateChangedEvent evt) => RefreshOpenPanel();
@@ -540,6 +632,7 @@ namespace ETD.UI
             EventBus.Unsubscribe<TurretDeselectedEvent>(OnTurretDeselected);
             EventBus.Unsubscribe<TurretUpgradedEvent>(OnTurretUpgraded);
             EventBus.Unsubscribe<ShowEvolveChoiceEvent>(OnShowEvolve);
+            EventBus.Unsubscribe<ShowEvolveTier2ChoiceEvent>(OnShowEvolveTier2);
             EventBus.Unsubscribe<GoldChangedEvent>(OnGoldChanged);
             EventBus.Unsubscribe<WaveStartedEvent>(OnWaveStarted);
             EventBus.Unsubscribe<PrepPhaseStartedEvent>(OnPrepPhaseStarted);

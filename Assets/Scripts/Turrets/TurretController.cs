@@ -2465,6 +2465,15 @@ namespace ETD.Turrets
             return Mathf.Max(1, Mathf.RoundToInt(cost));
         }
 
+        /// <summary>
+        /// v1.0 level-25 Tier2 evolution gold cost. Tier1's evolution is free (unlike
+        /// every other turret upgrade), but Tier2 is a bigger power spike, so it's
+        /// gated — reuses the per-level upgrade cost formula rather than authoring a
+        /// new tunable per turret, since GetUpgradeCost() already scales to a hefty
+        /// number by level 25.
+        /// </summary>
+        public int GetTier2EvolveCost() => GetUpgradeCost();
+
         public void Upgrade()
         {
             TotalGoldInvested += GetUpgradeCost();

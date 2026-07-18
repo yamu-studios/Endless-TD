@@ -46,7 +46,11 @@ namespace ETD.Input
             // ---------------------------------------------------------------
             if (state == GameState.EvolveChoice)
             {
-                if (KeybindingManager.GetKeyDown(KeybindAction.EvolvePathA)) _turretInfoPanel?.EvolvePathByKey(0);
+                if (KeybindingManager.GetKeyDown(KeybindAction.EvolvePathA))
+                {
+                    _turretInfoPanel?.EvolvePathByKey(0);
+                    _turretInfoPanel?.ConfirmTier2ByKey();
+                }
                 if (KeybindingManager.GetKeyDown(KeybindAction.EvolvePathB)) _turretInfoPanel?.EvolvePathByKey(1);
                 return;
             }
