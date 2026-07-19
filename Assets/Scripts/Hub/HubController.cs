@@ -4,6 +4,7 @@
 // Settings, Language). Handles button routing and leaderboard display.
 // ============================================================================
 using UnityEngine;
+using UnityEngine.InputSystem;
 using ETD.Core;
 using ETD.Data;
 using ETD.Meta;
@@ -201,7 +202,12 @@ namespace ETD.Hub
 
         private void Update()
         {
-            if (UnityEngine.Input.GetKeyDown(KeyCode.Escape))
+            // Keyboard Escape or a gamepad East-button press (fixed binding, see
+            // [[etd-v1-full-release]] Phase 5) both back out of an open window.
+            bool keyboardCancel = Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame;
+            bool gamepadCancel = Gamepad.current != null && Gamepad.current.buttonEast.wasPressedThisFrame;
+
+            if (keyboardCancel || gamepadCancel)
             {
                 if (_activeWindow != null)
                     CloseAllWindows();

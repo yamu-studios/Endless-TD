@@ -9,6 +9,7 @@
 // ============================================================================
 using ETD.Core;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace ETD.Input
 {
@@ -112,10 +113,24 @@ namespace ETD.Input
         {
             Vector3 input = Vector3.zero;
 
-            if (UnityEngine.Input.GetKey(KeyCode.W) || UnityEngine.Input.GetKey(KeyCode.UpArrow)) input.z += 1f;
-            if (UnityEngine.Input.GetKey(KeyCode.S) || UnityEngine.Input.GetKey(KeyCode.DownArrow)) input.z -= 1f;
-            if (UnityEngine.Input.GetKey(KeyCode.A) || UnityEngine.Input.GetKey(KeyCode.LeftArrow)) input.x -= 1f;
-            if (UnityEngine.Input.GetKey(KeyCode.D) || UnityEngine.Input.GetKey(KeyCode.RightArrow)) input.x += 1f;
+            var keyboard = Keyboard.current;
+            if (keyboard != null)
+            {
+                if (keyboard.wKey.isPressed || keyboard.upArrowKey.isPressed) input.z += 1f;
+                if (keyboard.sKey.isPressed || keyboard.downArrowKey.isPressed) input.z -= 1f;
+                if (keyboard.aKey.isPressed || keyboard.leftArrowKey.isPressed) input.x -= 1f;
+                if (keyboard.dKey.isPressed || keyboard.rightArrowKey.isPressed) input.x += 1f;
+            }
+
+            // Gamepad left stick mirrors WASD (see [[etd-v1-full-release]] Phase 5 —
+            // right stick is reserved for the gamepad cursor).
+            var gamepad = Gamepad.current;
+            if (gamepad != null)
+            {
+                Vector2 stick = gamepad.leftStick.ReadValue();
+                input.x += stick.x;
+                input.z += stick.y;
+            }
 
             if (input.sqrMagnitude < 0.001f) return;
 
@@ -169,7 +184,20 @@ namespace ETD.Input
 
         private void HandleZoom()
         {
+            // Mouse scroll left as legacy Input — untouched, tuned zoom feel, and
+            // scroll has no gamepad-virtual-device angle (unlike click/position,
+            // nothing about it needs to see VirtualMouseInput's virtual device).
             float scroll = UnityEngine.Input.GetAxis("Mouse ScrollWheel");
+
+            // Gamepad triggers zoom in/out (shoulders are reserved for the
+            // turret-placement "keep placing" modifier — see GameInputHandler).
+            if (Gamepad.current != null)
+            {
+                float triggerZoom = Gamepad.current.rightTrigger.ReadValue() - Gamepad.current.leftTrigger.ReadValue();
+                if (Mathf.Abs(triggerZoom) > 0.05f)
+                    scroll += triggerZoom * Time.unscaledDeltaTime;
+            }
+
             if (Mathf.Abs(scroll) < 0.001f) return;
 
             _targetZoom -= scroll * _zoomSpeed;

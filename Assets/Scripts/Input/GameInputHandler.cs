@@ -4,6 +4,7 @@
 // Escape for pause
 // ============================================================================
 using UnityEngine;
+using UnityEngine.InputSystem;
 using ETD.Core;
 using ETD.Data;
 using ETD.Grid;
@@ -47,8 +48,11 @@ namespace ETD.Inputs
             if (KeybindingManager.IsListeningForRebind || KeybindingManager.ShouldSuppressGameplayShortcuts)
                 return;
 
-            // Pause
-            if (KeybindingManager.GetKeyDown(KeybindAction.PauseOrCancel))
+            // Pause — keyboard Escape (via KeybindingManager) or a gamepad Start
+            // press. Gamepad pause is a fixed binding, not part of the rebindable
+            // keyboard shortcut system (see [[etd-v1-full-release]] Phase 5).
+            bool gamepadPausePressed = Gamepad.current != null && Gamepad.current.startButton.wasPressedThisFrame;
+            if (KeybindingManager.GetKeyDown(KeybindAction.PauseOrCancel) || gamepadPausePressed)
             {
                 if (GameManager.Instance.CurrentState == GameState.EvolveChoice)
                 {
@@ -95,8 +99,9 @@ namespace ETD.Inputs
         {
             // Don't process 3D clicks when clicking on UI
             if (IsPointerOverUI()) return;
+            if (Mouse.current == null) return;
 
-            if (UnityEngine.Input.GetMouseButtonDown(0))
+            if (Mouse.current.leftButton.wasPressedThisFrame)
             {
                 if (_isPlacingTurret)
                     TryPlaceTurret();
@@ -104,7 +109,7 @@ namespace ETD.Inputs
                     TrySelectTurret();
             }
 
-            if (UnityEngine.Input.GetMouseButtonDown(1))
+            if (Mouse.current.rightButton.wasPressedThisFrame)
             {
                 if (_isPlacingTurret)
                     CancelPlacement();
@@ -173,15 +178,19 @@ namespace ETD.Inputs
 
             _turretManager.PlaceTurret(_turretToPlace, gridPos);
 
-            // Keep placing if holding shift
-            if (!UnityEngine.Input.GetKey(KeyCode.LeftShift))
+            // Keep placing if holding shift (keyboard) or the gamepad's left
+            // shoulder button (fixed binding, mirrors the shift-to-keep-placing
+            // convenience for gamepad players).
+            bool keepPlacing = (Keyboard.current != null && Keyboard.current.leftShiftKey.isPressed)
+                || (Gamepad.current != null && Gamepad.current.leftShoulder.isPressed);
+            if (!keepPlacing)
                 CancelPlacement();
         }
 
         private void TrySelectTurret()
         {
             if (_mainCamera == null) return;
-            var ray = _mainCamera.ScreenPointToRay(UnityEngine.Input.mousePosition);
+            var ray = _mainCamera.ScreenPointToRay(GetPointerScreenPosition());
 
             if (Physics.Raycast(ray, out var hit, 1000f, _turretLayer))
             {
@@ -212,10 +221,20 @@ namespace ETD.Inputs
         private Vector3? GetMouseWorldPosition()
         {
             if (_mainCamera == null) return null;
-            var ray = _mainCamera.ScreenPointToRay(UnityEngine.Input.mousePosition);
+            var ray = _mainCamera.ScreenPointToRay(GetPointerScreenPosition());
             if (Physics.Raycast(ray, out var hit, 200f, _groundLayer))
                 return hit.point;
             return null;
+        }
+
+        /// <summary>
+        /// Mouse.current is the real hardware mouse, or the gamepad-driven
+        /// virtual cursor while GamepadCursorController has it active — either
+        /// way this is the correct pointer position to raycast from.
+        /// </summary>
+        private Vector2 GetPointerScreenPosition()
+        {
+            return Mouse.current != null ? Mouse.current.position.ReadValue() : Vector2.zero;
         }
 
         private bool IsPointerOverUI()

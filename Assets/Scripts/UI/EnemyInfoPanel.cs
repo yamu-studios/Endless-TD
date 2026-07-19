@@ -6,6 +6,7 @@
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 using ETD.Core;
 using ETD.Enemies;
@@ -101,7 +102,7 @@ namespace ETD.UI
             if (IsPointerOverUI())
                 return;
 
-            if (_closeOnEmptyClick && UnityEngine.Input.GetMouseButtonDown(1))
+            if (_closeOnEmptyClick && Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame)
             {
                 Hide();
                 return;
@@ -110,7 +111,7 @@ namespace ETD.UI
             if (_hoverPreview && TryGetEnemyUnderCursor(out EnemyController hoverEnemy))
                 Select(hoverEnemy);
 
-            if (!_clickToSelect || !UnityEngine.Input.GetMouseButtonDown(0))
+            if (!_clickToSelect || Mouse.current == null || !Mouse.current.leftButton.wasPressedThisFrame)
                 return;
 
             if (TryGetEnemyUnderCursor(out EnemyController clickedEnemy))
@@ -127,7 +128,8 @@ namespace ETD.UI
             if (cam == null)
                 return false;
 
-            Ray ray = cam.ScreenPointToRay(UnityEngine.Input.mousePosition);
+            Vector2 pointerPos = Mouse.current != null ? Mouse.current.position.ReadValue() : (Vector2)UnityEngine.Input.mousePosition;
+            Ray ray = cam.ScreenPointToRay(pointerPos);
             if (!Physics.Raycast(ray, out RaycastHit hit, 1000f, _enemyLayer, QueryTriggerInteraction.Collide))
                 return false;
 

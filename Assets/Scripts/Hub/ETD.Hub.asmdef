@@ -9,7 +9,8 @@
         "ETD.Turrets",
         "ETD.UI",
         "Unity.TextMeshPro",
-        "ETD.Gameplay"
+        "ETD.Gameplay",
+        "Unity.InputSystem"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
