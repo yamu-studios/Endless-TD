@@ -32,6 +32,13 @@ namespace ETD.UI
             if (_button == null) _button = GetComponent<Button>();
             _button?.onClick.RemoveAllListeners();
             _button?.onClick.AddListener(() => onSelect?.Invoke());
+            if (_button != null) _button.interactable = true;
+        }
+
+        public void SetInteractable(bool interactable)
+        {
+            if (_button == null) _button = GetComponent<Button>();
+            if (_button != null) _button.interactable = interactable;
         }
     }
 }

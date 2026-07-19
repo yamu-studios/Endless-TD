@@ -37,10 +37,17 @@ namespace ETD.UI
         [Header("Info")]
         [SerializeField] private TMP_Text _levelText;
 
+        [Header("Selection Feedback")]
+        [Tooltip("Pause after picking a card before the next queued offer (or panel close) " +
+                 "appears, so the pick reads clearly instead of the cards hard-cutting to " +
+                 "new content under the cursor.")]
+        [SerializeField] private float _advanceDelay = 0.35f;
+
         private RunManager _runManager;
         private bool _isShowing;
         public bool IsShowing => _isShowing;
         private int currentRerolls = 0;
+        private Coroutine _advanceRoutine;
         private void Awake()
         {
             EventBus.Subscribe<LevelUpEvent>(OnLevelUp);
@@ -109,14 +116,35 @@ namespace ETD.UI
         {
             if (!_isShowing) return;
             _isShowing = false;
+
+            // Lock every card the instant a pick registers so a fast double-click
+            // can't fall through onto the next offer's card at the same slot.
+            for (int i = 0; i < _cardSlots.Length; i++)
+            {
+                if (_cardSlots[i] == null) continue;
+                _cardSlots[i].SetInteractable(false);
+            }
+
             AudioManager.Instance?.PlaySFX(GameSoundConfig.Instance?.SpecCardSelect, SoundCategory.SpecCard);
             EventBus.Publish(new SpecCardChosenEvent { CardIndex = index });
 
             // v1.0: leveling up no longer pauses the run, so multiple offers can
             // stack up while the player is away (see [[etd-v1-full-release]] Phase 4).
-            // SpecCardChosenEvent above resolves synchronously, so PendingOfferCount
-            // already reflects the queue with this offer popped — if another offer
-            // is waiting, show it immediately instead of closing.
+            // Advance after a short delay instead of swapping in the same frame —
+            // the instant hard-cut read as janky and gave zero confirmation the
+            // pick registered before new content appeared under the cursor.
+            if (_advanceRoutine != null) StopCoroutine(_advanceRoutine);
+            _advanceRoutine = StartCoroutine(AdvanceAfterChoice());
+        }
+
+        private System.Collections.IEnumerator AdvanceAfterChoice()
+        {
+            yield return new WaitForSecondsRealtime(_advanceDelay);
+
+            // A fresh LevelUpEvent may have already re-shown the panel during the
+            // delay (leveling no longer pauses the run) — don't stomp on it.
+            if (_isShowing) yield break;
+
             if (_runManager != null && _runManager.PendingOfferCount > 0)
             {
                 ShowCards(_runManager.RunData != null ? _runManager.RunData.Level : 0);
