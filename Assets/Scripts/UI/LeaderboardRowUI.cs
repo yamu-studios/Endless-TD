@@ -53,21 +53,6 @@ namespace ETD.UI
         }
 
         // =================================================================
-        // STEAM ENTRY
-        // =================================================================
-
-        public void SetSteamEntry(SteamLeaderboardEntry entry, bool isPlayerRow = false)
-        {
-            bool highlight = entry.IsLocalPlayer || isPlayerRow;
-
-            SetRank(entry.Rank, isSeparator: isPlayerRow && !entry.IsLocalPlayer);
-            SetName(entry.PlayerName);
-            SetScore(entry.Score);
-            SetAvatar(entry.Avatar);
-            SetBackground(highlight ? _playerColor : _defaultColor);
-        }
-
-        // =================================================================
         // LOCAL FALLBACK ENTRY
         // =================================================================
 

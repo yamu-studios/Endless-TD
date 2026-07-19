@@ -21,6 +21,10 @@ namespace ETD.UI
         [SerializeField] private GameObject _panel;
         [SerializeField] private Button _closeButton;
 
+        [Tooltip("Opens the panel on click. The panel was previously Tab-key-only with no " +
+                 "clickable way in, which left gamepad-only players unable to ever open it.")]
+        [SerializeField] private Button _openButton;
+
         [Header("Drag")]
         [SerializeField] private bool _enableDragging = true;
         [SerializeField] private RectTransform _dragHandle;
@@ -62,6 +66,8 @@ namespace ETD.UI
                 _closeButton.onClick.AddListener(Close);
             else
                 PanelCloseButton.Ensure(_panel, Close);
+
+            _openButton?.onClick.AddListener(Toggle);
 
             EnsureDraggable();
             if (_panel != null) _panel.SetActive(false);
