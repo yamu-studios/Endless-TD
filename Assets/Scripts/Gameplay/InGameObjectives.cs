@@ -9,16 +9,15 @@
 // the same public TurretController.Upgrade() a real Upgrade-button click would
 // use — it doesn't check gold itself, the caller does, so calling it directly
 // here is a legitimate "free upgrade" in this sandboxed, infinite-gold run,
-// not a special-cased method). Evolution CHOICES are still made by the player
-// for real (Path A/B click, Tier2 confirm click) — only the level-grinding is
-// skipped.
+// not a special-cased method). Tier1 evolution is still a real player choice
+// (Path A/B click); Tier2 evolves automatically with no confirm step, matching
+// real gameplay (see TurretController.Upgrade()).
 // ============================================================================
 using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using ETD.Core;
-using ETD.Waves;
 using ETD.Gameplay;
 using ETD.Turrets;
 
@@ -36,16 +35,9 @@ namespace ETD.Gameplay
         [Header("Timing")]
         [SerializeField] private float _completeShowDuration = 1.2f;
         [SerializeField] private float _nextObjectiveDelay = 0.5f;
-        [SerializeField] private float _dynamicTileShowDuration = 4f;
-        [SerializeField] private float _returnToHubDelay = 2.5f;
-
-        [Header("References")]
-        [SerializeField] private WaveManager _waveManager;
-        [SerializeField] private float _skipGracePeriod = 2f;
 
         private int _currentObjective = 0;
         private bool _active = false;
-        private bool _skipGraceTriggered = false;
 
         private int _turretsPlaced;
         private int _firstTurretId = -1;
@@ -55,13 +47,10 @@ namespace ETD.Gameplay
         {
             "tutorial_objective_build_turret",
             "tutorial_objective_build_maze",
-            "tutorial_objective_speed_control",
-            "tutorial_objective_skip_prep",
             "tutorial_objective_upgrade_turret",
             "tutorial_objective_evolve_choice",
             "tutorial_objective_evolve_tier2",
             "tutorial_objective_level_up_spec_card",
-            "tutorial_objective_dynamic_tiles",
             "tutorial_objective_cast_spell",
             "tutorial_objective_tab_stats",
         };
@@ -70,28 +59,29 @@ namespace ETD.Gameplay
         {
             "Build a turret",
             "Place 2 more turrets to build a maze",
-            "Try the speed control to fast-forward",
-            "Skip preparation time to earn gold",
             "Select your turret and press Q to upgrade it",
-            "Your turret can evolve! Choose a path",
-            "It can evolve again! Confirm the upgrade",
+            "Your turret can evolve at level {0}! Choose a path",
+            "It will automatically evolve again at level {0}!",
             "Defeat enemies, level up, and choose a Spec Card",
-            "Glowing tiles give turrets special bonuses",
             "Press the spell button to cast your chosen spell",
             "Press Tab to see your Spec Card stats",
         };
 
         private const int StepBuildTurret = 0;
         private const int StepBuildMaze = 1;
-        private const int StepSpeedControl = 2;
-        private const int StepSkipPrep = 3;
-        private const int StepUpgradeTurret = 4;
-        private const int StepEvolveChoice = 5;
-        private const int StepEvolveTier2 = 6;
-        private const int StepLevelUpSpecCard = 7;
-        private const int StepDynamicTiles = 8;
-        private const int StepCastSpell = 9;
-        private const int StepTabStats = 10;
+        private const int StepUpgradeTurret = 2;
+        private const int StepEvolveChoice = 3;
+        private const int StepEvolveTier2 = 4;
+        private const int StepLevelUpSpecCard = 5;
+        private const int StepCastSpell = 6;
+        private const int StepTabStats = 7;
+
+        /// <summary>
+        /// Gates real kill-XP level-ups during the tutorial so the player can't level
+        /// up before the objective sequence actually reaches the LevelUp step. Always
+        /// true outside tutorial mode (see RunManager.AddXP).
+        /// </summary>
+        public static bool TutorialLevelUpGateOpen { get; private set; } = true;
 
         private void Awake()
         {
@@ -111,6 +101,8 @@ namespace ETD.Gameplay
             if (_completeIndicator != null) _completeIndicator.SetActive(false);
             EnsureExitButton();
 
+            TutorialLevelUpGateOpen = false;
+
             SubscribeEvents();
             _active = true;
             ShowObjective(0);
@@ -121,9 +113,6 @@ namespace ETD.Gameplay
             if (!_active) return;
 
             if (_currentObjective == StepTabStats && UnityEngine.Input.GetKeyDown(KeyCode.Tab))
-                CompleteCurrentObjective();
-
-            if (_currentObjective == StepSpeedControl && Time.timeScale > 1f)
                 CompleteCurrentObjective();
         }
 
@@ -148,13 +137,10 @@ namespace ETD.Gameplay
             }
 
             if (_objectiveText != null)
-                _objectiveText.text = LocalizationManager.Get(ObjectiveKeys[index], ObjectiveFallbacks[index]);
+                _objectiveText.text = BuildObjectiveText(index);
 
-            if (index == StepSkipPrep)
-                EventBus.Subscribe<PrepPhaseStartedEvent>(OnPrepPhaseStarted);
-
-            if (index == StepDynamicTiles)
-                StartCoroutine(AutoAdvanceAfter(_dynamicTileShowDuration));
+            if (index == StepLevelUpSpecCard)
+                TutorialLevelUpGateOpen = true;
 
             // Count-based steps can already be satisfied by the time we enter them —
             // e.g. a fast player placing 3 turrets within the ~1.7s completion-animation
@@ -164,13 +150,32 @@ namespace ETD.Gameplay
                 CompleteCurrentObjective();
             else if (index == StepBuildMaze && _turretsPlaced >= 3)
                 CompleteCurrentObjective();
+            else if (index == StepEvolveTier2)
+            {
+                // Tier2 now evolves automatically the instant the turret hits the
+                // level threshold (no confirm button), which can easily happen
+                // while we're still mid-animation on the EvolveChoice step above.
+                var t = ResolveFirstTurret();
+                if (t != null && t.IsEvolvedTier2)
+                    CompleteCurrentObjective();
+            }
         }
 
-        private IEnumerator AutoAdvanceAfter(float delay)
+        /// <summary>
+        /// Evolve objective text includes the turret's actual evolution level
+        /// instead of generic wording.
+        /// </summary>
+        private string BuildObjectiveText(int index)
         {
-            yield return new WaitForSecondsRealtime(delay);
-            if (_active && _currentObjective == StepDynamicTiles)
-                CompleteCurrentObjective();
+            if (index == StepEvolveChoice || index == StepEvolveTier2)
+            {
+                var turret = ResolveFirstTurret();
+                int level = index == StepEvolveChoice
+                    ? (turret != null && turret.Data != null ? turret.Data.EvolveLevel : 0)
+                    : (turret != null && turret.Data != null ? turret.Data.EvolveLevel2 : 0);
+                return LocalizationManager.GetFormat(ObjectiveKeys[index], ObjectiveFallbacks[index], level);
+            }
+            return LocalizationManager.Get(ObjectiveKeys[index], ObjectiveFallbacks[index]);
         }
 
         // =================================================================
@@ -217,7 +222,12 @@ namespace ETD.Gameplay
 
         private void OnTurretUpgraded(TurretUpgradedEvent evt)
         {
-            if (!_active || _currentObjective != StepUpgradeTurret || evt.TurretId != _firstTurretId) return;
+            if (!_active || _currentObjective != StepUpgradeTurret) return;
+
+            // Accept a Q-press on ANY placed turret, not just the first one built.
+            // Whichever turret the player actually upgrades becomes the tracked
+            // turret for the rest of the flow (evolve steps below).
+            _firstTurretId = evt.TurretId;
 
             // Player pressed Q for real once — script-jump the rest of the way to
             // this turret's Tier1 evolve threshold using the same public Upgrade()
@@ -242,33 +252,20 @@ namespace ETD.Gameplay
 
             if (_currentObjective == StepEvolveChoice)
             {
-                // Tier1 just resolved (this event fires from inside TurretController.Evolve(),
-                // which runs BEFORE the player's click handler calls GameManager.PopModalState()).
-                // Jumping to the Tier2 threshold synchronously here would push a second
-                // EvolveChoice modal before the first one is popped, corrupting
-                // GameManager's _stateBeforeModal (it would capture "EvolveChoice" itself
-                // as the state to restore to, freezing the game at Time.timeScale=0
-                // forever). Defer the jump until the modal actually clears.
-                StartCoroutine(JumpToTier2AfterModalClears());
+                // Evolutions no longer pause the game, so grind straight to the
+                // Tier2 threshold here. If that already flips IsEvolvedTier2 before
+                // the StepEvolveTier2 objective is even shown, ShowObjective's
+                // entry re-check (above) catches it and completes the step.
+                if (turret.Data != null)
+                {
+                    while (turret.Level < turret.Data.EvolveLevel2 && !turret.IsEvolvedTier2)
+                        turret.Upgrade();
+                }
                 CompleteCurrentObjective();
             }
             else if (_currentObjective == StepEvolveTier2 && turret.IsEvolvedTier2)
             {
                 CompleteCurrentObjective();
-            }
-        }
-
-        private IEnumerator JumpToTier2AfterModalClears()
-        {
-            yield return new WaitUntil(() =>
-                GameManager.Instance == null || GameManager.Instance.CurrentState != GameState.EvolveChoice);
-            yield return null; // one extra frame of safety margin
-
-            var turret = ResolveFirstTurret();
-            if (turret != null && turret.Data != null)
-            {
-                while (turret.Level < turret.Data.EvolveLevel2 && !turret.IsEvolvedTier2)
-                    turret.Upgrade();
             }
         }
 
@@ -298,43 +295,6 @@ namespace ETD.Gameplay
             CompleteCurrentObjective();
         }
 
-        private void OnPrepPhaseStarted(PrepPhaseStartedEvent evt)
-        {
-            _skipGraceTriggered = false;
-            StartCoroutine(MonitorSkipPrep());
-        }
-
-        private IEnumerator MonitorSkipPrep()
-        {
-            while (_active && _currentObjective == StepSkipPrep && _waveManager != null)
-            {
-                float remaining = _waveManager.PrepTimeRemaining;
-
-                if (remaining <= _skipGracePeriod && remaining > 0f && !_skipGraceTriggered)
-                {
-                    _skipGraceTriggered = true;
-                    float fullReward = GameConstants.BASE_PREP_TIME
-                                     * GameConstants.SKIP_REWARD_GOLD_PER_SECOND;
-                    if (ServiceLocator.TryGet<RunManager>(out var rm))
-                        rm.AddGold(Mathf.RoundToInt(fullReward));
-
-                    EventBus.Unsubscribe<PrepPhaseStartedEvent>(OnPrepPhaseStarted);
-                    CompleteCurrentObjective();
-                    yield break;
-                }
-
-                yield return null;
-            }
-        }
-
-        public void OnSkipButtonPressed()
-        {
-            if (!_active || _currentObjective != StepSkipPrep || _skipGraceTriggered) return;
-            _skipGraceTriggered = true;
-            EventBus.Unsubscribe<PrepPhaseStartedEvent>(OnPrepPhaseStarted);
-            CompleteCurrentObjective();
-        }
-
         // =================================================================
         // COMPLETE TUTORIAL / EXIT
         // =================================================================
@@ -343,45 +303,53 @@ namespace ETD.Gameplay
         {
             _active = false;
             UnsubscribeEvents();
+            TutorialLevelUpGateOpen = true;
 
-            if (_objectiveText != null)
-                _objectiveText.text = LocalizationManager.Get("tutorial_complete_message", "Great work! Returning to Hub...");
-            if (_completeIndicator != null) _completeIndicator.SetActive(true);
+            if (_panel != null) _panel.SetActive(false);
+            if (_endTutorialButtonGO != null) _endTutorialButtonGO.SetActive(false);
 
-            StartCoroutine(ReturnToHubAfterDelay());
+            ShowCompletionPanel();
         }
 
         public void ExitTutorial()
         {
             _active = false;
             UnsubscribeEvents();
+            TutorialLevelUpGateOpen = true;
             GameManager.Instance?.LoadHub();
         }
 
+        private TMP_Text _endTutorialLabel;
+        private GameObject _endTutorialButtonGO;
+
         /// <summary>
-        /// Small runtime "X" close button in the panel's corner, so the player can
-        /// bail out of the practice run early. Built inline rather than via
+        /// Runtime "End Tutorial" button, bottom-right of the screen, so the player
+        /// can bail out of the practice run early. Built inline rather than via
         /// ETD.UI.PanelCloseButton — that class lives in the ETD.UI assembly, which
         /// already references ETD.Gameplay, so referencing it back here would be a
-        /// circular assembly dependency.
+        /// circular assembly dependency. Parented to the root canvas (not _panel)
+        /// so it sits in the screen corner rather than the small objectives widget.
         /// </summary>
         private void EnsureExitButton()
         {
             if (_panel == null) return;
 
-            const string buttonName = "[ExitTutorialButton]";
-            if (_panel.transform.Find(buttonName) != null) return;
+            var canvas = _panel.GetComponentInParent<Canvas>();
+            Transform parent = canvas != null ? canvas.transform : _panel.transform;
+
+            const string buttonName = "[EndTutorialButton]";
+            if (parent.Find(buttonName) != null) return;
 
             var buttonGO = new GameObject(buttonName, typeof(RectTransform));
-            buttonGO.transform.SetParent(_panel.transform, false);
+            buttonGO.transform.SetParent(parent, false);
             buttonGO.layer = _panel.layer;
 
             var rect = (RectTransform)buttonGO.transform;
-            rect.anchorMin = new Vector2(1f, 1f);
-            rect.anchorMax = new Vector2(1f, 1f);
-            rect.pivot = new Vector2(1f, 1f);
-            rect.sizeDelta = new Vector2(26f, 26f);
-            rect.anchoredPosition = new Vector2(-4f, -4f);
+            rect.anchorMin = new Vector2(1f, 0f);
+            rect.anchorMax = new Vector2(1f, 0f);
+            rect.pivot = new Vector2(1f, 0f);
+            rect.sizeDelta = new Vector2(170f, 42f);
+            rect.anchoredPosition = new Vector2(-20f, 20f);
 
             var background = buttonGO.AddComponent<Image>();
             background.color = new Color(0.16f, 0.16f, 0.2f, 0.9f);
@@ -405,20 +373,132 @@ namespace ETD.Gameplay
             labelRect.offsetMax = Vector2.zero;
 
             var label = labelGO.AddComponent<TextMeshProUGUI>();
-            label.text = "X";
-            label.fontSize = 15f;
+            label.text = LocalizationManager.Get("tutorial_end_button", "End Tutorial");
+            label.fontSize = 16f;
             label.fontStyle = FontStyles.Bold;
             label.alignment = TextAlignmentOptions.Center;
             label.color = new Color(0.92f, 0.92f, 0.95f, 1f);
             label.raycastTarget = false;
+            _endTutorialLabel = label;
+            _endTutorialButtonGO = buttonGO;
 
             buttonGO.transform.SetAsLastSibling();
         }
 
-        private IEnumerator ReturnToHubAfterDelay()
+        /// <summary>
+        /// Runtime "Tutorial Complete" panel shown once all objectives are done —
+        /// replaces the old auto-return-to-hub-after-a-delay flow with an explicit
+        /// "Return to Menu" button. Built inline for the same reason as
+        /// EnsureExitButton (avoids a circular ETD.UI &lt;-&gt; ETD.Gameplay dependency).
+        /// </summary>
+        private void ShowCompletionPanel()
         {
-            yield return new WaitForSecondsRealtime(_returnToHubDelay);
-            GameManager.Instance?.LoadHub();
+            // includeInactive: true — CompleteTutorial() deactivates _panel just
+            // before calling this, and GetComponentInParent skips inactive objects
+            // by default, which would otherwise make this silently find nothing.
+            var canvas = _panel != null ? _panel.GetComponentInParent<Canvas>(true) : FindObjectOfType<Canvas>();
+            if (canvas == null) return;
+            Transform parent = canvas.transform;
+
+            var dimmerGO = new GameObject("[TutorialCompletePanel]", typeof(RectTransform));
+            dimmerGO.transform.SetParent(parent, false);
+            dimmerGO.layer = gameObject.layer;
+
+            var dimmerRect = (RectTransform)dimmerGO.transform;
+            dimmerRect.anchorMin = Vector2.zero;
+            dimmerRect.anchorMax = Vector2.one;
+            dimmerRect.offsetMin = Vector2.zero;
+            dimmerRect.offsetMax = Vector2.zero;
+
+            var dimmer = dimmerGO.AddComponent<Image>();
+            dimmer.color = new Color(0f, 0f, 0f, 0.6f);
+
+            var boxGO = new GameObject("Box", typeof(RectTransform));
+            boxGO.transform.SetParent(dimmerGO.transform, false);
+            boxGO.layer = gameObject.layer;
+
+            var boxRect = (RectTransform)boxGO.transform;
+            boxRect.anchorMin = new Vector2(0.5f, 0.5f);
+            boxRect.anchorMax = new Vector2(0.5f, 0.5f);
+            boxRect.pivot = new Vector2(0.5f, 0.5f);
+            boxRect.sizeDelta = new Vector2(460f, 260f);
+            boxRect.anchoredPosition = Vector2.zero;
+
+            var boxImage = boxGO.AddComponent<Image>();
+            boxImage.color = new Color(0.11f, 0.12f, 0.15f, 0.98f);
+
+            var titleGO = new GameObject("Title", typeof(RectTransform));
+            titleGO.transform.SetParent(boxGO.transform, false);
+            titleGO.layer = gameObject.layer;
+            var titleRect = (RectTransform)titleGO.transform;
+            titleRect.anchorMin = new Vector2(0f, 1f);
+            titleRect.anchorMax = new Vector2(1f, 1f);
+            titleRect.pivot = new Vector2(0.5f, 1f);
+            titleRect.sizeDelta = new Vector2(-40f, 60f);
+            titleRect.anchoredPosition = new Vector2(0f, -30f);
+            var title = titleGO.AddComponent<TextMeshProUGUI>();
+            title.text = LocalizationManager.Get("tutorial_complete_title", "Tutorial Complete!");
+            title.fontSize = 28f;
+            title.fontStyle = FontStyles.Bold;
+            title.alignment = TextAlignmentOptions.Center;
+            title.color = new Color(1f, 0.86f, 0.4f, 1f);
+            title.raycastTarget = false;
+
+            var bodyGO = new GameObject("Body", typeof(RectTransform));
+            bodyGO.transform.SetParent(boxGO.transform, false);
+            bodyGO.layer = gameObject.layer;
+            var bodyRect = (RectTransform)bodyGO.transform;
+            bodyRect.anchorMin = new Vector2(0f, 1f);
+            bodyRect.anchorMax = new Vector2(1f, 1f);
+            bodyRect.pivot = new Vector2(0.5f, 1f);
+            bodyRect.sizeDelta = new Vector2(-60f, 70f);
+            bodyRect.anchoredPosition = new Vector2(0f, -100f);
+            var body = bodyGO.AddComponent<TextMeshProUGUI>();
+            body.text = LocalizationManager.Get("tutorial_complete_message", "Great work! You've learned the basics.");
+            body.fontSize = 18f;
+            body.alignment = TextAlignmentOptions.Center;
+            body.color = new Color(0.85f, 0.85f, 0.9f, 1f);
+            body.enableWordWrapping = true;
+            body.raycastTarget = false;
+
+            var buttonGO = new GameObject("ReturnButton", typeof(RectTransform));
+            buttonGO.transform.SetParent(boxGO.transform, false);
+            buttonGO.layer = gameObject.layer;
+            var buttonRect = (RectTransform)buttonGO.transform;
+            buttonRect.anchorMin = new Vector2(0.5f, 0f);
+            buttonRect.anchorMax = new Vector2(0.5f, 0f);
+            buttonRect.pivot = new Vector2(0.5f, 0f);
+            buttonRect.sizeDelta = new Vector2(220f, 52f);
+            buttonRect.anchoredPosition = new Vector2(0f, 28f);
+
+            var buttonBg = buttonGO.AddComponent<Image>();
+            buttonBg.color = new Color(0.2f, 0.55f, 0.3f, 1f);
+
+            var button = buttonGO.AddComponent<Button>();
+            button.targetGraphic = buttonBg;
+            var colors = button.colors;
+            colors.highlightedColor = new Color(0.27f, 0.7f, 0.38f, 1f);
+            colors.pressedColor = new Color(0.16f, 0.42f, 0.23f, 1f);
+            button.colors = colors;
+            button.onClick.AddListener(() => GameManager.Instance?.LoadHub());
+
+            var buttonLabelGO = new GameObject("Label", typeof(RectTransform));
+            buttonLabelGO.transform.SetParent(buttonGO.transform, false);
+            buttonLabelGO.layer = gameObject.layer;
+            var buttonLabelRect = (RectTransform)buttonLabelGO.transform;
+            buttonLabelRect.anchorMin = Vector2.zero;
+            buttonLabelRect.anchorMax = Vector2.one;
+            buttonLabelRect.offsetMin = Vector2.zero;
+            buttonLabelRect.offsetMax = Vector2.zero;
+            var buttonLabel = buttonLabelGO.AddComponent<TextMeshProUGUI>();
+            buttonLabel.text = LocalizationManager.Get("tutorial_return_to_menu_button", "Return to Menu");
+            buttonLabel.fontSize = 18f;
+            buttonLabel.fontStyle = FontStyles.Bold;
+            buttonLabel.alignment = TextAlignmentOptions.Center;
+            buttonLabel.color = Color.white;
+            buttonLabel.raycastTarget = false;
+
+            dimmerGO.transform.SetAsLastSibling();
         }
 
         private void SubscribeEvents()
@@ -439,13 +519,14 @@ namespace ETD.Gameplay
             EventBus.Unsubscribe<LevelUpEvent>(OnLevelUp);
             EventBus.Unsubscribe<SpecCardChosenEvent>(OnSpecCardChosen);
             EventBus.Unsubscribe<SpellCastEvent>(OnSpellCast);
-            EventBus.Unsubscribe<PrepPhaseStartedEvent>(OnPrepPhaseStarted);
         }
 
         private void OnLanguageChanged(LanguageChangedEvent evt)
         {
             if (_active && _currentObjective >= 0 && _currentObjective < ObjectiveKeys.Length && _objectiveText != null)
-                _objectiveText.text = LocalizationManager.Get(ObjectiveKeys[_currentObjective], ObjectiveFallbacks[_currentObjective]);
+                _objectiveText.text = BuildObjectiveText(_currentObjective);
+            if (_endTutorialLabel != null)
+                _endTutorialLabel.text = LocalizationManager.Get("tutorial_end_button", "End Tutorial");
         }
 
         private void OnDestroy()

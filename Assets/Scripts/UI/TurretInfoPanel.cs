@@ -110,6 +110,7 @@ namespace ETD.UI
             EventBus.Subscribe<TurretSelectedEvent>(OnTurretSelected);
             EventBus.Subscribe<TurretDeselectedEvent>(OnTurretDeselected);
             EventBus.Subscribe<TurretUpgradedEvent>(OnTurretUpgraded);
+            EventBus.Subscribe<TurretEvolvedEvent>(OnTurretEvolvedRefresh);
             EventBus.Subscribe<ShowEvolveChoiceEvent>(OnShowEvolve);
             EventBus.Subscribe<ShowEvolveTier2ChoiceEvent>(OnShowEvolveTier2);
             EventBus.Subscribe<GoldChangedEvent>(OnGoldChanged);
@@ -231,6 +232,17 @@ namespace ETD.UI
         }
 
         private void OnTurretUpgraded(TurretUpgradedEvent evt)
+        {
+            if (_selectedTurret != null && _selectedTurret.InstanceId == evt.TurretId)
+                RefreshInfo();
+        }
+
+        /// <summary>
+        /// Tier2 now evolves automatically with no confirm button (see
+        /// TurretController.Upgrade), so this is what shows the newly evolved
+        /// turret's stats — Path A/B evolves also flow through here.
+        /// </summary>
+        private void OnTurretEvolvedRefresh(TurretEvolvedEvent evt)
         {
             if (_selectedTurret != null && _selectedTurret.InstanceId == evt.TurretId)
                 RefreshInfo();
@@ -631,6 +643,7 @@ namespace ETD.UI
             EventBus.Unsubscribe<TurretSelectedEvent>(OnTurretSelected);
             EventBus.Unsubscribe<TurretDeselectedEvent>(OnTurretDeselected);
             EventBus.Unsubscribe<TurretUpgradedEvent>(OnTurretUpgraded);
+            EventBus.Unsubscribe<TurretEvolvedEvent>(OnTurretEvolvedRefresh);
             EventBus.Unsubscribe<ShowEvolveChoiceEvent>(OnShowEvolve);
             EventBus.Unsubscribe<ShowEvolveTier2ChoiceEvent>(OnShowEvolveTier2);
             EventBus.Unsubscribe<GoldChangedEvent>(OnGoldChanged);

@@ -105,6 +105,17 @@ namespace ETD.Gameplay
                 _runData.Gold = 999999;
                 _runData.MaxLives = 999999;
                 _runData.Lives = 999999;
+
+                // The tutorial's "cast a spell" objective needs SpellCastButton to be
+                // visible, but it hides itself entirely when no spell is selected
+                // (SelectedSpellId ""). A player who launches the tutorial without
+                // ever picking one in Planning would otherwise get stuck on that step
+                // with no button to press. In-memory only, like Gold/Lives above —
+                // never persisted (IsTutorialMode skips SaveSystem.Save's disk write,
+                // and LoadHub reloads from disk on exit). Real runs stay spell-less by
+                // choice; this only auto-picks inside the sandbox.
+                if (string.IsNullOrEmpty(save.SelectedSpellId) && _database.Spells != null && _database.Spells.Length > 0)
+                    save.SelectedSpellId = _database.Spells[0].Id;
             }
 
 
@@ -301,6 +312,15 @@ namespace ETD.Gameplay
             float modified = amount * xpMult;
 
             _runData.CurrentXP += modified;
+
+            // During the tutorial, hold XP just under the threshold until the
+            // objective sequence actually reaches the LevelUp step — otherwise
+            // real kill XP can level the player up before that objective appears.
+            bool tutorialLevelUpGated = GameManager.Instance != null
+                && GameManager.Instance.IsTutorialMode
+                && !InGameObjectives.TutorialLevelUpGateOpen;
+            if (tutorialLevelUpGated && _runData.CurrentXP >= _runData.XPToNextLevel)
+                _runData.CurrentXP = _runData.XPToNextLevel - 1f;
 
             EventBus.Publish(new XPGainedEvent
             {
@@ -802,12 +822,8 @@ namespace ETD.Gameplay
         public void SkipPrepTime()
         {
             float reward = _waveManager.SkipPrepTime();
-           
+
             AddGold(Mathf.RoundToInt(reward));
-
-
-            // Notify tutorial
-            FindObjectOfType<InGameObjectives>()?.OnSkipButtonPressed();
         }
 
         /// <summary>

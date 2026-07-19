@@ -2494,14 +2494,16 @@ namespace ETD.Turrets
 
             if (Level >= Data.EvolveLevel && !IsEvolved && Data.Type != TurretType.Radar)
             {
-                GameManager.Instance.PushModalState(GameState.EvolveChoice);
+                // Path A/B is still a real player choice, but it no longer pauses
+                // the game — the panel just shows over live gameplay.
                 EventBus.Publish(new ShowEvolveChoiceEvent { TurretId = InstanceId });
             }
             else if (IsEvolved && !IsEvolvedTier2 && Data.Tier2 != null &&
                 Level >= Data.EvolveLevel2 && Data.Type != TurretType.Radar)
             {
-                GameManager.Instance.PushModalState(GameState.EvolveChoice);
-                EventBus.Publish(new ShowEvolveTier2ChoiceEvent { TurretId = InstanceId });
+                // Tier2 has no choice to make (single shared upgrade), so it
+                // evolves immediately with no confirm button and no pause.
+                EvolveTier2();
             }
         }
 
