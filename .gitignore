@@ -107,3 +107,8 @@ InitTestScene*.unity*
 
 # AI tool workspaces
 .codex/
+
+# Unity Profiler captures - local debug/perf artifacts, can be multi-GB and
+# exceed GitHub's file size limit (see [[etd-v1-full-release]] memory: a past
+# capture here blocked every push until history was rewritten to remove it)
+/ProfilerCaptures/
