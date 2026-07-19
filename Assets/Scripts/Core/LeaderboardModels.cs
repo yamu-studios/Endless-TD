@@ -32,7 +32,7 @@ namespace ETD.Core
         // Core stays independent from Steamworks.NET because it does not use CSteamID.
         public ulong UserId;
 
-        // Steam avatar converted by SteamLeaderboardService.
+        // Steam avatar converted by SteamLeaderboardRuntime.
         // UI can display this with a RawImage.
         public Texture2D AvatarTexture;
 
