@@ -45,21 +45,21 @@ namespace ETD.Turrets
 
         [Header("Critical Hits")]
         [Tooltip("Default critical damage multiplier. 2 means 200% damage.")]
-        [SerializeField] private float _baseCritDamageMultiplier = 2f;
+        [SerializeField] private float _baseCritDamageMultiplier = BalanceConstants.BaseCritDamageMultiplier;
 
         [Tooltip("Continuous lasers roll crit once per this many seconds, not every frame.")]
         [SerializeField] private float _laserCritWindowSeconds = 1f;
 
         [Header("Attack Speed Safety")]
         [Tooltip("Lowest allowed projectile attack interval after level scaling. Prevents zero/near-zero cooldowns.")]
-        [SerializeField] private float _minimumProjectileAttackInterval = 0.12f;
+        [SerializeField] private float _minimumProjectileAttackInterval = BalanceConstants.MinProjectileAttackInterval;
 
         [Tooltip("Final hard cap for non-laser projectile attacks per second after all buffs/specs/tiles.")]
-        [SerializeField] private float _maxProjectileAttackSpeed = 8f;
+        [SerializeField] private float _maxProjectileAttackSpeed = BalanceConstants.MaxProjectileAttackSpeed;
 
         [Header("Damage Scaling")]
         [Tooltip("Caps multiplicative damage growth per turret upgrade level. 0.25 = at most +25% damage per turret level.")]
-        [SerializeField] private float _maxMultiplicativeDamageGrowthPerLevel = 0.25f;
+        [SerializeField] private float _maxMultiplicativeDamageGrowthPerLevel = BalanceConstants.MaxDamageGrowthPerLevel;
 
         [Header("Laser Ramp (base lasers)")]
         [Tooltip("All lasers gain this much bonus damage per second while staying on the same target " +
@@ -81,16 +81,16 @@ namespace ETD.Turrets
         [Tooltip("Turret IDENTITY effects grow with upgrade level: Frost slow strength/duration " +
                  "and the Inferno flat-burn floor gain this fraction per level (0.01 = +1%/level). " +
                  "Capped by the value below. Damage/speed/range already scale separately.")]
-        [SerializeField] private float _identityScalingPerLevel = 0.01f;
+        [SerializeField] private float _identityScalingPerLevel = BalanceConstants.IdentityScalingPerLevel;
 
         [Tooltip("Maximum total identity bonus from levels. 0.5 = at most +50% (reached at level 50).")]
-        [SerializeField] private float _identityScalingCap = 0.5f;
+        [SerializeField] private float _identityScalingCap = BalanceConstants.IdentityScalingCap;
 
         [Header("Burn Scaling")]
         [Tooltip("Burn total damage equals this fraction of the applying hit, spread over the burn " +
                  "duration (0.25 = the burn deals 25% of the hit's damage over its duration). The flat " +
                  "BurnDPS from turret data acts as an early-game floor. Keeps Inferno relevant late-game.")]
-        [SerializeField, Range(0f, 1f)] private float _burnHitPercent = 0.25f;
+        [SerializeField, Range(0f, 1f)] private float _burnHitPercent = BalanceConstants.BurnHitPercent;
 
         [Header("Blastfire Splash (Inferno Path A)")]
         [Tooltip("Blastfire's evolved detonation splashes this fraction of the turret's per-hit " +
@@ -98,7 +98,7 @@ namespace ETD.Turrets
                  "Because it scales off the turret's damage, the explosion keeps up with upgrades " +
                  "and enemy HP scaling. 0.6 = 60% of a normal hit to each nearby enemy. The flat " +
                  "ConeDPS from turret data acts as an early-game floor when set.")]
-        [SerializeField, Range(0f, 2f)] private float _blastfireAreaDamagePercent = 0.6f;
+        [SerializeField, Range(0f, 2f)] private float _blastfireAreaDamagePercent = BalanceConstants.BlastfireAreaDamagePercent;
 
         [Header("Upgrade Visual Scale")]
         [Tooltip("If enabled, the turret model starts at Min Scale Multiplier and grows only during the first Scale Steps upgrades.")]
@@ -657,9 +657,9 @@ namespace ETD.Turrets
             // with enemy health scaling, which uses Mathf.Pow(HealthScalePerWave, wave).
             int levelIndex = Mathf.Max(0, Level - 1);
             float baseDamageSource = Data.Damage;
-            float baseInterval = Data.AttackInterval - (Data.AttackSpeedPerLevel * levelIndex);
-            baseInterval = Mathf.Max(_minimumProjectileAttackInterval, baseInterval);
-            float baseRng = Data.Range + (Data.RangePerLevel * levelIndex);
+            float baseInterval = TurretStatMath.LeveledAttackInterval(
+                Data.AttackInterval, Data.AttackSpeedPerLevel, levelIndex, _minimumProjectileAttackInterval);
+            float baseRng = TurretStatMath.LeveledRange(Data.Range, Data.RangePerLevel, levelIndex);
 
             // Evolution stat overrides
             if (IsEvolved)
@@ -668,9 +668,12 @@ namespace ETD.Turrets
                 if (evo != null)
                 {
                     if (evo.DamageOverride >= 0) baseDamageSource = evo.DamageOverride;
-                    if (evo.AttackIntervalOverride >= 0) baseInterval = evo.AttackIntervalOverride - (Data.AttackSpeedPerLevel * levelIndex);
-                    if (evo.RangeOverride >= 0) baseRng = evo.RangeOverride + (Data.RangePerLevel * levelIndex);
-                    baseInterval = Mathf.Max(_minimumProjectileAttackInterval, baseInterval);
+                    if (evo.AttackIntervalOverride >= 0)
+                        baseInterval = TurretStatMath.LeveledAttackInterval(
+                            evo.AttackIntervalOverride, Data.AttackSpeedPerLevel, levelIndex,
+                            _minimumProjectileAttackInterval);
+                    if (evo.RangeOverride >= 0)
+                        baseRng = TurretStatMath.LeveledRange(evo.RangeOverride, Data.RangePerLevel, levelIndex);
                 }
             }
 
@@ -736,44 +739,17 @@ namespace ETD.Turrets
             _cachedLaserChallengeTelemetryInterval = Mathf.Max(0.05f, _laserChallengeTelemetryInterval);
         }
 
-        private float CalculateMultiplicativeUpgradeDamage(float baseDamage, float damagePerLevel, int levelIndex)
-        {
-            baseDamage = Mathf.Max(0f, baseDamage);
-            if (levelIndex <= 0 || damagePerLevel <= 0f)
-                return baseDamage;
+        // Formulas live in ETD.Data.TurretStatMath so the in-game wiki can compute the
+        // same numbers without a placed turret. These wrappers just supply this
+        // instance's serialized tuning values.
 
-            float perLevelBonus = GetDamageGrowthPercentPerLevel(baseDamage, damagePerLevel);
-            return baseDamage * Mathf.Pow(1f + perLevelBonus, levelIndex);
-        }
+        private float CalculateMultiplicativeUpgradeDamage(float baseDamage, float damagePerLevel, int levelIndex)
+            => TurretStatMath.LeveledDamage(
+                baseDamage, damagePerLevel, levelIndex, _maxMultiplicativeDamageGrowthPerLevel);
 
         private float GetDamageGrowthPercentPerLevel(float baseDamage, float damagePerLevel)
-        {
-            if (damagePerLevel <= 0f)
-                return 0f;
-
-            float bonus;
-
-            if (damagePerLevel > 1f)
-            {
-                // Backward-compatible interpretation for existing assets.
-                // Old data was authored as flat damage: base 10, DamagePerLevel 2.
-                // New scaling converts that first upgrade into +20% per level.
-                bonus = damagePerLevel / Mathf.Max(1f, baseDamage);
-            }
-            else
-            {
-                // New data can be authored directly as percent: 0.08 = +8% per level.
-                bonus = damagePerLevel;
-            }
-
-            // Safety fallback: if an existing prefab deserializes the new field as 0,
-            // still use the intended default cap instead of disabling scaling.
-            float maxGrowth = _maxMultiplicativeDamageGrowthPerLevel > 0f
-                ? _maxMultiplicativeDamageGrowthPerLevel
-                : 0.25f;
-
-            return Mathf.Clamp(bonus, 0f, maxGrowth);
-        }
+            => TurretStatMath.DamageGrowthPercentPerLevel(
+                baseDamage, damagePerLevel, _maxMultiplicativeDamageGrowthPerLevel);
 
         private void ApplyTileMod(ref float damage, ref float speed, ref float range,
             TurretStatModifier mod)
@@ -1139,9 +1115,8 @@ namespace ETD.Turrets
 
             // Identity scaling: status effects grow with turret level so upgrading a
             // Frost/Inferno turret improves what makes it special, not just raw stats.
-            float identityMult = 1f + Mathf.Min(
-                Mathf.Max(0f, _identityScalingCap),
-                Mathf.Max(0f, _identityScalingPerLevel) * Mathf.Max(0, Level - 1));
+            float identityMult = TurretStatMath.IdentityMultiplier(
+                Level - 1, _identityScalingPerLevel, _identityScalingCap);
 
             switch (Data.Type)
             {
@@ -1269,7 +1244,8 @@ namespace ETD.Turrets
                 // Catalytic Burn cards add to the burn-from-hit fraction.
                 float hitFraction = _burnHitPercent
                     + (_statModifiers != null ? Mathf.Max(0f, _statModifiers.GetBurnFromHitBonus()) : 0f);
-                float hitScaledDps = (finalDamage * hitFraction / statusDuration) * burnBonus;
+                float hitScaledDps = TurretStatMath.BurnDpsFromHit(
+                    finalDamage, statusDuration, hitFraction, burnBonus);
                 if (hitScaledDps > statusValue)
                     statusValue = hitScaledDps;
             }
@@ -1810,7 +1786,7 @@ namespace ETD.Turrets
                 return;
 
             const float radius = 2.25f;
-            const float spreadPower = 0.6f;
+            const float spreadPower = BalanceConstants.BurnSpreadPower;
 
             _enemyManager.GetEnemiesInRange(source.transform.position, radius, _specialTargets);
 
@@ -1951,7 +1927,7 @@ namespace ETD.Turrets
                         sourceTurretType: (int)Data.Type, sourceTurretId: InstanceId);
 
                     if (bounceBackChance > 0f && !primary.IsDead && Random.value <= bounceBackChance)
-                        primary.TakeChainDamage(finalChainDamage * 0.5f, 0f, playHitVFX: false,
+                        primary.TakeChainDamage(finalChainDamage * BalanceConstants.ChainBounceBackDamageFraction, 0f, playHitVFX: false,
                             isCritical: isChainCritical, showDamageNumber: _showSecondaryChainDamageNumbers,
                             sourceTurretType: (int)Data.Type, sourceTurretId: InstanceId);
 
@@ -2218,9 +2194,9 @@ namespace ETD.Turrets
 
             int levelIndex = Mathf.Max(0, Level - 1);
             float tier2AuraBonus = _cachedTier2Evolution != null ? _cachedTier2Evolution.SupportDamageAuraBonus : 0f;
-            damageBonus = Mathf.Max(
-                0f,
-                Data.SupportDamageAura + Data.SupportDamageAuraPerLevel * levelIndex + tier2AuraBonus) * auraMultiplier;
+            damageBonus = TurretStatMath.SupportAuraBonus(
+                Data.SupportDamageAura, Data.SupportDamageAuraPerLevel, levelIndex,
+                tier2AuraBonus, auraMultiplier);
 
             if (IsEvolved && EvolutionPath == 0)
             {
@@ -2228,9 +2204,8 @@ namespace ETD.Turrets
                     ? Data.PathA.AttackSpeedAura
                     : Data.SupportSpeedAura;
 
-                speedBonus = Mathf.Max(
-                    0f,
-                    baseSpeedBonus + Data.SupportSpeedAuraPerLevel * levelIndex) * auraMultiplier;
+                speedBonus = TurretStatMath.SupportAuraBonus(
+                    baseSpeedBonus, Data.SupportSpeedAuraPerLevel, levelIndex, 0f, auraMultiplier);
             }
             else if (IsEvolved && EvolutionPath == 1)
             {
@@ -2238,8 +2213,10 @@ namespace ETD.Turrets
                     ? Data.PathB.EnemySlowAura
                     : Data.SupportEnemySlowAura;
 
-                enemySlow = Mathf.Clamp01(
-                    baseEnemySlow + Data.SupportEnemySlowAuraPerLevel * levelIndex);
+                // Deliberately not scaled by auraMultiplier — the AuraPower trait
+                // affects only the damage/speed auras, never the slow.
+                enemySlow = TurretStatMath.SupportEnemySlow(
+                    baseEnemySlow, Data.SupportEnemySlowAuraPerLevel, levelIndex);
             }
 
             return true;

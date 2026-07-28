@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using ETD.Data;
+using ETD.Turrets;
 using UnityEditor;
 using UnityEngine;
 
@@ -114,6 +115,7 @@ namespace ETD.EditorTools
 
             ValidateEnemies(db.Enemies, issues);
             ValidateTurrets(db.Turrets, issues);
+            ValidateTurretPrefabBalanceFields(db.Turrets, issues);
             ValidateTraits(db.Traits, issues);
             ValidateSpecCards(db.SpecCards, issues);
             ValidateChallenges(db.Challenges, issues);
@@ -262,6 +264,91 @@ namespace ETD.EditorTools
             if (evolution.EvolvedPrefab == null)
                 issues.Add(new Issue(Severity.Warning, turret,
                     $"Turret '{turret.name}' {pathName} has no EvolvedPrefab. This is okay only if you intentionally keep the same prefab."));
+        }
+
+        // =================================================================
+        // WIKI BALANCE-CONSTANT DRIFT
+        // =================================================================
+
+        /// <summary>
+        /// The in-game wiki computes its numbers from ETD.Data.BalanceConstants, but
+        /// gameplay reads the serialized field on each turret prefab. Those agree today
+        /// only because no prefab overrides them. If a constant is changed while a
+        /// prefab holds a stale serialized copy, the wiki would confidently print a
+        /// number the game does not use — so flag any divergence.
+        /// </summary>
+        private static readonly (string Field, float Expected, string ConstantName)[] WikiBalanceFields =
+        {
+            ("_minimumProjectileAttackInterval",     BalanceConstants.MinProjectileAttackInterval,     nameof(BalanceConstants.MinProjectileAttackInterval)),
+            ("_maxProjectileAttackSpeed",            BalanceConstants.MaxProjectileAttackSpeed,        nameof(BalanceConstants.MaxProjectileAttackSpeed)),
+            ("_maxMultiplicativeDamageGrowthPerLevel", BalanceConstants.MaxDamageGrowthPerLevel,       nameof(BalanceConstants.MaxDamageGrowthPerLevel)),
+            ("_baseCritDamageMultiplier",            BalanceConstants.BaseCritDamageMultiplier,        nameof(BalanceConstants.BaseCritDamageMultiplier)),
+            ("_identityScalingPerLevel",             BalanceConstants.IdentityScalingPerLevel,         nameof(BalanceConstants.IdentityScalingPerLevel)),
+            ("_identityScalingCap",                  BalanceConstants.IdentityScalingCap,              nameof(BalanceConstants.IdentityScalingCap)),
+            ("_burnHitPercent",                      BalanceConstants.BurnHitPercent,                  nameof(BalanceConstants.BurnHitPercent)),
+            ("_blastfireAreaDamagePercent",          BalanceConstants.BlastfireAreaDamagePercent,      nameof(BalanceConstants.BlastfireAreaDamagePercent)),
+        };
+
+        private const float BalanceFieldEpsilon = 0.0001f;
+
+        private static void ValidateTurretPrefabBalanceFields(
+            IReadOnlyList<TurretData> turrets,
+            List<Issue> issues)
+        {
+            if (turrets == null) return;
+
+            // Base and evolved prefabs both spawn live turrets, so both must agree.
+            var checkedPrefabs = new HashSet<GameObject>();
+
+            foreach (var turret in turrets.Where(t => t != null))
+            {
+                CheckPrefabBalanceFields(turret.Prefab, turret, checkedPrefabs, issues);
+                if (turret.PathA != null)
+                    CheckPrefabBalanceFields(turret.PathA.EvolvedPrefab, turret, checkedPrefabs, issues);
+                if (turret.PathB != null)
+                    CheckPrefabBalanceFields(turret.PathB.EvolvedPrefab, turret, checkedPrefabs, issues);
+            }
+        }
+
+        private static void CheckPrefabBalanceFields(
+            GameObject prefab,
+            TurretData owner,
+            HashSet<GameObject> alreadyChecked,
+            List<Issue> issues)
+        {
+            if (prefab == null || !alreadyChecked.Add(prefab))
+                return;
+
+            var controller = prefab.GetComponentInChildren<TurretController>(true);
+            if (controller == null)
+                return;
+
+            // SerializedObject reads the in-memory value, which is the C# field
+            // initializer when the prefab YAML predates the field. That is exactly the
+            // value gameplay will use, so absent-from-YAML correctly reads as matching.
+            var so = new SerializedObject(controller);
+
+            foreach (var (field, expected, constantName) in WikiBalanceFields)
+            {
+                var prop = so.FindProperty(field);
+                if (prop == null)
+                {
+                    issues.Add(new Issue(Severity.Warning, prefab,
+                        $"Turret prefab '{prefab.name}' has no field '{field}'. " +
+                        $"BalanceConstants.{constantName} may be documenting a field that no longer exists."));
+                    continue;
+                }
+
+                if (Mathf.Abs(prop.floatValue - expected) > BalanceFieldEpsilon)
+                {
+                    issues.Add(new Issue(Severity.Warning, prefab,
+                        $"Turret prefab '{prefab.name}' (used by '{owner.name}') has {field} = {prop.floatValue}, " +
+                        $"but BalanceConstants.{constantName} = {expected}. The in-game wiki quotes the constant, " +
+                        $"so it would show a number this turret does not use. Re-sync the prefab or the constant."));
+                }
+            }
+
+            so.Dispose();
         }
 
         private static void ValidateTraits(IReadOnlyList<TraitData> traits, List<Issue> issues)

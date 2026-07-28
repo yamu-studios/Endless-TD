@@ -127,6 +127,16 @@ namespace ETD.Core
 
     public struct SettingToggleEvent { public bool IsActive; }
 
+    // State notification: raised BY the wiki window when it opens/closes.
+    // GameInputHandler tracks it so Escape closes the wiki rather than unpausing.
+    public struct WikiToggleEvent { public bool IsActive; }
+
+    // Command: "close the wiki". Kept separate from WikiToggleEvent so the state
+    // notification never doubles as a request. Published by input (which cannot
+    // reference ETD.UI — that would be a circular assembly dependency) and handled
+    // by the wiki window itself.
+    public struct CloseWikiRequestEvent { }
+
 
     public struct ChallengeCompletedEvent { public string ChallengeId; }
     public struct ShopItemPurchasedEvent { public string ItemId; }
@@ -140,7 +150,7 @@ namespace ETD.Core
 
     public enum HubWindowType
     {
-        Planning, Challenges, Shop, Turrets, Settings, Language
+        Planning, Challenges, Shop, Turrets, Settings, Language, Wiki
     }
 
     // Published by PlanningTabSwitcher when the Planning window's Traits/Spells

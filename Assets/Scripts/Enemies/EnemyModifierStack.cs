@@ -19,7 +19,7 @@ namespace ETD.Enemies
         // DefaultMaxBurnStacks bounds regular sources; the Ember Stacker evolution
         // raises the effective cap per application (TurretEvolutionData.MaxBurnStacks).
         // BurnStackSlots is the absolute array bound shared by all sources.
-        public const int DefaultMaxBurnStacks = 5;
+        public const int DefaultMaxBurnStacks = ETD.Data.BalanceConstants.DefaultMaxBurnStacks;
         private const int BurnStackSlots = 16;
 
         private struct BurnStack
@@ -38,7 +38,7 @@ namespace ETD.Enemies
         // (which are now time-limited per-enemy) reduce movement to zero. This floor
         // prevents the "tiny freeze/slow + high attack speed = permanent lock" exploit
         // and gives slow builds diminishing returns instead of a hard stop.
-        private const float MinSlowSpeedMultiplier = 0.15f;
+        private const float MinSlowSpeedMultiplier = ETD.Data.BalanceConstants.MinSlowSpeedMultiplier;
 
         private readonly Dictionary<StatusEffectType, EnemyStatusModifier> _statuses = new();
         private readonly Dictionary<string, TimedFloatModifier> _moveSpeedMultipliers = new();

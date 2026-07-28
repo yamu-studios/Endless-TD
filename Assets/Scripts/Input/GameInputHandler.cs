@@ -28,6 +28,7 @@ namespace ETD.Inputs
         private TurretData _turretToPlace;
         private int _selectedTurretId = -1;
         private bool isSettingsEnabled;
+        private bool isWikiOpen;
         private void Start()
         {
             _grid = ServiceLocator.Get<GridSystem>();
@@ -36,6 +37,7 @@ namespace ETD.Inputs
                 _mainCamera = Camera.main;
 
             EventBus.Subscribe<SettingToggleEvent>(OnSettingsToggled);
+            EventBus.Subscribe<WikiToggleEvent>(OnWikiToggled);
         }
 
         private void Update()
@@ -66,10 +68,14 @@ namespace ETD.Inputs
                     CancelPlacement();
                 else
                 {
-                    if(!isSettingsEnabled)
-                        GameManager.Instance.TogglePause();
-                    else
+                    // Sub-panels close first so Escape never skips straight to
+                    // unpausing while the player is reading something.
+                    if (isWikiOpen)
+                        EventBus.Publish(new CloseWikiRequestEvent());
+                    else if (isSettingsEnabled)
                         EventBus.Publish(new SettingToggleEvent { IsActive = false });
+                    else
+                        GameManager.Instance.TogglePause();
                 }
                    
                 return;
@@ -242,6 +248,11 @@ namespace ETD.Inputs
             return EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
         }
 
+        private void OnWikiToggled(WikiToggleEvent evt)
+        {
+            isWikiOpen = evt.IsActive;
+        }
+
         private void OnSettingsToggled(SettingToggleEvent evt)
         {
             isSettingsEnabled = evt.IsActive;
@@ -250,6 +261,7 @@ namespace ETD.Inputs
         void OnDestroy()
         {
             EventBus.Unsubscribe<SettingToggleEvent>(OnSettingsToggled);
+            EventBus.Unsubscribe<WikiToggleEvent>(OnWikiToggled);
         }
     }
 }

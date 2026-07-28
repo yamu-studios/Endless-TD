@@ -21,6 +21,7 @@ namespace ETD.Hub
         [SerializeField] private GameObject _turretWindow;
         [SerializeField] private GameObject _settingsWindow;
         [SerializeField] private GameObject _languageWindow;
+        [SerializeField] private GameObject _wikiWindow;
         [SerializeField] private GameObject _leaderboardPanel;
 
         [Header("Button Badges")]
@@ -148,6 +149,11 @@ namespace ETD.Hub
             ToggleWindow(_languageWindow, HubWindowType.Language);
         }
 
+        public void OnWikiClicked()
+        {
+            ToggleWindow(_wikiWindow, HubWindowType.Wiki);
+        }
+
         public void OnExitClicked()
         {
             if (SaveManager.Instance != null)
@@ -190,6 +196,7 @@ namespace ETD.Hub
             if (_turretWindow != null) _turretWindow.SetActive(false);
             if (_settingsWindow != null) _settingsWindow.SetActive(false);
             if (_languageWindow != null) _languageWindow.SetActive(false);
+            if (_wikiWindow != null) _wikiWindow.SetActive(false);
             _activeWindow = null;
         }
 
