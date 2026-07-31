@@ -217,8 +217,7 @@ namespace ETD.Marketing
                 cell.Specialty = data.Category;
                 cell.DynamicTile = data;
 
-                if (data.TileMaterial != null && cell.TileRenderer != null)
-                    cell.TileRenderer.material = data.TileMaterial;
+                ETD.Grid.GridSystem.ApplyTileVisual(cell, data);
 
                 EventBus.Publish(new TileSpecialtyAppliedEvent
                 {

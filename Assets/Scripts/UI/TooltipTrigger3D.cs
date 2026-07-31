@@ -2,7 +2,7 @@
 // TILE TOOLTIP TRIGGER 3D
 // A lightweight component that tells TooltipManager to show a tooltip
 // when the mouse is over this 3D object.
-// Uses OnMouseEnter/OnMouseExit — requires a Collider on the GO.
+// Uses OnMouseEnter/OnMouseExit ï¿½ requires a Collider on the GO.
 // =========================================================================
 using ETD.Core;
 using ETD.Data;
@@ -62,6 +62,7 @@ namespace ETD.UI
                 TurretStatModifier.StatType.Range => LocalizationManager.Get("range", "Range"),
                 TurretStatModifier.StatType.UpgradeCost => LocalizationManager.Get("upgrade_cost", "Upgrade Cost"),
                 TurretStatModifier.StatType.GoldFromKills => LocalizationManager.Get("gold_from_kills", "Gold from Kills"),
+                TurretStatModifier.StatType.ArmorPierce => LocalizationManager.Get("armor_pierce", "Armor Pierce"),
                 _ => mod.Stat.ToString()
             };
             return $"{sign}{pct*100f:F0}% {statName}";

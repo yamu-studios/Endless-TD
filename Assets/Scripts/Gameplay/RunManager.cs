@@ -39,6 +39,7 @@ namespace ETD.Gameplay
 
         private SpecCardPityState _specCardPityState;
         private SpecCardOfferGenerator _specCardOfferGenerator;
+        private System.Random _specCardRng;
 
         // v1.0 Phase 4: non-blocking spec-card offers. Leveling up no longer pauses
         // the run (see [[etd-v1-full-release]]) — each level-up's offer is appended
@@ -417,7 +418,13 @@ namespace ETD.Gameplay
         /// </summary>
         private void RerollCurrentOffer()
         {
-            var options = GenerateSpecCardOffer();
+            // Pass the offer being replaced so the new one cannot repeat any of its
+            // cards. Without this the reroll just re-rolls the same weighted pool and
+            // can legitimately hand back one or two identical cards, which reads to
+            // players as "the reroll didn't work".
+            SpecCardData[] previous = _pendingOffers.Count > 0 ? _pendingOffers[0] : null;
+
+            var options = GenerateSpecCardOffer(previous);
             if (options == null) return;
 
             if (_pendingOffers.Count > 0)
@@ -426,7 +433,13 @@ namespace ETD.Gameplay
                 _pendingOffers.Add(options);
         }
 
-        private SpecCardData[] GenerateSpecCardOffer()
+        /// <summary>
+        /// <paramref name="exclude"/> (optional) is the offer being replaced by a
+        /// reroll; those cards are removed from the candidate pool so a reroll always
+        /// visibly changes every slot. Ignored when honouring it would leave too few
+        /// cards to fill an offer — a short offer would be worse than a repeat.
+        /// </summary>
+        private SpecCardData[] GenerateSpecCardOffer(SpecCardData[] exclude = null)
         {
             var allCards = _database.SpecCards;
             if (allCards == null || allCards.Length == 0) return null;
@@ -446,6 +459,29 @@ namespace ETD.Gameplay
 
             if (available.Count == 0) return null;
 
+            if (exclude != null)
+            {
+                int needed = GameConstants.SPEC_CARDS_PER_LEVELUP;
+                int wouldRemain = available.Count;
+
+                for (int i = 0; i < exclude.Length; i++)
+                    if (exclude[i] != null && available.Contains(exclude[i]))
+                        wouldRemain--;
+
+                if (wouldRemain >= needed)
+                {
+                    for (int i = 0; i < exclude.Length; i++)
+                        if (exclude[i] != null)
+                            available.Remove(exclude[i]);
+                }
+                else
+                {
+                    Debug.LogWarning(
+                        $"[SpecCards] Reroll pool too small to exclude the previous offer " +
+                        $"({available.Count} offerable, need {needed}); repeats are possible.");
+                }
+            }
+
             if (_specCardOfferGenerator == null)
             {
                 Debug.LogError("[SpecCards] SpecCardOfferGenerator is missing.");
@@ -455,7 +491,11 @@ namespace ETD.Gameplay
             float gradeBonus = _statModifiers != null ? _statModifiers.GetGradeBonus() : 0f;
             int currentWave = GetCurrentWaveForPity();
 
-            var rng = new System.Random();
+            // Reused rather than constructed per call: a fresh System.Random seeded
+            // from the clock can produce an identical sequence for two offers rolled
+            // in the same tick, which is a second way a reroll appears to do nothing.
+            _specCardRng ??= new System.Random();
+            var rng = _specCardRng;
 
             List<SpecCardData> offer = _specCardOfferGenerator.GenerateOffer(
                 available,

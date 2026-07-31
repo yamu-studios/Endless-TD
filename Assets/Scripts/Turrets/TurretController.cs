@@ -209,6 +209,22 @@ namespace ETD.Turrets
         public DynamicTileData DynamicTile { get; private set; }
         public int EvolutionPath { get; private set; } = -1;
 
+        /// <summary>
+        /// True once the turret has reached its Path A/B evolve level but the player
+        /// has not picked a path yet. Upgrades must be blocked while this is set:
+        /// levelling past the gate leaves IsEvolved false forever, and the Lv25 Tier2
+        /// evolution in Upgrade() requires IsEvolved, so the turret would silently
+        /// become ineligible for Tier2. Enforced by the UI (button + Q shortcut)
+        /// rather than inside Upgrade(), because InGameObjectives drives the tutorial
+        /// with a while-loop over Upgrade() that would never terminate if blocked.
+        /// </summary>
+        public bool IsEvolveChoicePending =>
+            Data != null
+            && !IsEvolved
+            && Data.Type != TurretType.Radar
+            && Level >= Data.EvolveLevel
+            && (Data.PathA != null || Data.PathB != null);
+
         /// <summary>Current laser ramp damage multiplier (1 = no ramp). UI-facing.</summary>
         public float LaserRampMultiplier => _laserStackMultiplier;
 
@@ -254,6 +270,12 @@ namespace ETD.Turrets
         // Tile
         private TileSpecialty _tileSpecialty;
         private DynamicTileData _dynamicTile;
+
+        /// <summary>
+        /// Armor pierce granted by this turret's dynamic tile, cached from
+        /// RecalculateStats and passed into EnemyController.TakeDamage per hit.
+        /// </summary>
+        private float _tileArmorPierce;
 
         // Laser stacking / crit window
         private float _laserStackMultiplier = 1f;
@@ -685,10 +707,19 @@ namespace ETD.Turrets
             float baseSpd = Data.IsContinuousBeam ? 1f : (baseInterval > 0 ? 1f / baseInterval : 1f);
 
             // Dynamic tile modifiers
+            _tileArmorPierce = 0f;
             if (_dynamicTile != null)
             {
                 ApplyTileMod(ref baseDmg, ref baseSpd, ref baseRng, _dynamicTile.PrimaryEffect);
                 ApplyTileMod(ref baseDmg, ref baseSpd, ref baseRng, _dynamicTile.Tradeoff);
+
+                // Cached here rather than read per hit: this runs on place/upgrade/
+                // evolve only, while the value is needed on every damage tick.
+                if (_dynamicTile.PrimaryEffect.Stat == TurretStatModifier.StatType.ArmorPierce)
+                    _tileArmorPierce += _dynamicTile.PrimaryEffect.Value;
+                if (_dynamicTile.Tradeoff.Stat == TurretStatModifier.StatType.ArmorPierce)
+                    _tileArmorPierce += _dynamicTile.Tradeoff.Value;
+                _tileArmorPierce = Mathf.Max(0f, _tileArmorPierce);
             }
 
             // Optional run-wide modifiers. These are safe even if your current
@@ -1268,14 +1299,14 @@ namespace ETD.Turrets
             {
                 // Fallback: direct damage
                 target.TakeDamage(finalDamage, status, statusValue, statusDuration, isCritical: isCriticalHit,
-                    sourceTurretType: (int)Data.Type, sourceTurretId: InstanceId);
+                    sourceTurretType: (int)Data.Type, sourceTurretId: InstanceId, bonusArmorPierce: _tileArmorPierce);
                 ApplyOnHitSpecials(target, finalDamage, status, statusValue, statusDuration);
                 projectileEvents++;
 
                 if (fireExtraProjectile)
                 {
                     target.TakeDamage(finalDamage, status, statusValue, statusDuration, isCritical: isCriticalHit,
-                    sourceTurretType: (int)Data.Type, sourceTurretId: InstanceId);
+                    sourceTurretType: (int)Data.Type, sourceTurretId: InstanceId, bonusArmorPierce: _tileArmorPierce);
                     ApplyOnHitSpecials(target, finalDamage, status, statusValue, statusDuration);
                     projectileEvents++;
                 }
@@ -1385,7 +1416,7 @@ namespace ETD.Turrets
                 damageKind: DamageNumberKind.Laser,
                 showDamageNumber: _showPrimaryLaserDamageNumbers,
                 sourceTurretType: (int)Data.Type,
-                sourceTurretId: InstanceId);
+                sourceTurretId: InstanceId, bonusArmorPierce: _tileArmorPierce);
             Profiler.EndSample();
 
             // Laser's signature status marker: HPPercentReduce previously existed only
@@ -1631,7 +1662,7 @@ namespace ETD.Turrets
                     damageKind: DamageNumberKind.Laser,
                     showDamageNumber: _showSecondaryLaserDamageNumbers,
                     sourceTurretType: (int)Data.Type,
-                    sourceTurretId: InstanceId);
+                    sourceTurretId: InstanceId, bonusArmorPierce: _tileArmorPierce);
             }
             Profiler.EndSample();
         }
@@ -1812,7 +1843,7 @@ namespace ETD.Turrets
             float chance = _statModifiers?.GetChainBounceBackChance() ?? 0f;
             if (chance <= 0f || primary == null || primary.IsDead || Random.value > chance) return;
 
-            primary.TakeDamage(chainDamage * 0.5f, sourceTurretType: (int)Data.Type, sourceTurretId: InstanceId);
+            primary.TakeDamage(chainDamage * 0.5f, sourceTurretType: (int)Data.Type, sourceTurretId: InstanceId, bonusArmorPierce: _tileArmorPierce);
         }
 
         private void AccumulateLaserRefraction(EnemyController primary, float frameDamage, float damageDt)
@@ -1848,7 +1879,7 @@ namespace ETD.Turrets
                     damageKind: DamageNumberKind.Laser,
                     showDamageNumber: _showSecondaryLaserDamageNumbers,
                     sourceTurretType: (int)Data.Type,
-                    sourceTurretId: InstanceId);
+                    sourceTurretId: InstanceId, bonusArmorPierce: _tileArmorPierce);
             }
             Profiler.EndSample();
         }
@@ -2089,7 +2120,7 @@ namespace ETD.Turrets
                     bool playHitVfx = hitVfxBudget-- > 0;
                     enemy.TakeDamage(areaDamage, StatusEffectType.None, 0f, 0f, playHitVfx,
                         isCritical: isAreaCritical, damageKind: DamageNumberKind.Area,
-                        sourceTurretType: (int)Data.Type, sourceTurretId: InstanceId);
+                        sourceTurretType: (int)Data.Type, sourceTurretId: InstanceId, bonusArmorPierce: _tileArmorPierce);
 
                     if (applyBurn && !enemy.IsDead)
                         enemy.ApplyStatus(StatusEffectType.Burn, spreadBurnDps, Data.BurnDuration, (int)Data.Type, InstanceId);
@@ -2480,7 +2511,12 @@ namespace ETD.Turrets
             {
                 // Tier2 has no choice to make (single shared upgrade), so it
                 // evolves immediately with no confirm button and no pause.
-                EvolveTier2();
+                // Routed through the manager so Tier2's EvolvedPrefab is swapped in;
+                // note that swap destroys this GameObject, so nothing may run after it.
+                if (_turretManager != null)
+                    _turretManager.EvolveTurretTier2(InstanceId);
+                else
+                    EvolveTier2();
             }
         }
 
@@ -2597,7 +2633,7 @@ namespace ETD.Turrets
             if (_projectileManager == null)
             {
                 target.TakeDamage(damage, status, statusValue, statusDuration, isCritical: isCritical,
-                    sourceTurretType: (int)Data.Type, sourceTurretId: InstanceId);
+                    sourceTurretType: (int)Data.Type, sourceTurretId: InstanceId, bonusArmorPierce: _tileArmorPierce);
                 ApplyOnHitSpecials(target, damage, status, statusValue, statusDuration);
                 return 1;
             }
@@ -2722,9 +2758,10 @@ namespace ETD.Turrets
         /// restore: the evolved turret should visually start fresh from its own
         /// inspector scale values, even if the old gameplay level is preserved.
         /// </summary>
-        public void RestoreState(int level, int totalGoldInvested, int evolutionPath)
+        public void RestoreState(int level, int totalGoldInvested, int evolutionPath,
+            bool isEvolvedTier2 = false)
         {
-            RestoreSnapshotStateInternal(level, totalGoldInvested, true, evolutionPath, false,
+            RestoreSnapshotStateInternal(level, totalGoldInvested, true, evolutionPath, isEvolvedTier2,
                 resetScaleProgressToCurrentLevel: true);
         }
 

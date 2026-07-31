@@ -148,19 +148,79 @@ namespace ETD.Turrets
         // =================================================================
 
         /// <summary>
-        /// v1.0 level-25 shared second evolution tier. Always evolves in place (no
-        /// prefab swap) — Tier2 converges from either Path A or B so there's no
-        /// second visual form to spawn, unlike EvolveTurret's optional EvolvedPrefab.
+        /// v1.0 level-25 shared second evolution tier. Tier2 converges from either
+        /// Path A or B, so there is a single shared visual form: if the turret's
+        /// Tier2 has an EvolvedPrefab set it is swapped in exactly like Path A/B,
+        /// otherwise the turret evolves in place and only its stats change.
         /// </summary>
         public bool EvolveTurretTier2(int instanceId, bool publishEvent = true)
         {
-            if (!_turrets.TryGetValue(instanceId, out var controller))
+            if (!_turrets.TryGetValue(instanceId, out var oldController))
             {
                 Debug.LogWarning($"[TurretManager] EvolveTurretTier2: turret {instanceId} not found");
                 return false;
             }
 
-            controller.EvolveTier2(publishEvent);
+            var data = oldController.Data;
+            GameObject evolvedPrefab = data != null && data.Tier2 != null ? data.Tier2.EvolvedPrefab : null;
+
+            if (evolvedPrefab == null)
+            {
+                oldController.EvolveTier2(publishEvent);
+                return true;
+            }
+
+            // Snapshot state from old turret
+            Vector2Int gridPos = oldController.GridPosition;
+            int level = oldController.Level;
+            int goldInvested = oldController.TotalGoldInvested;
+            int evolutionPath = oldController.EvolutionPath;
+            TileSpecialty specialty = oldController.TileSpecialty;
+            DynamicTileData dynamicTile = oldController.DynamicTile;
+            Vector3 worldPos = oldController.transform.position;
+            int savedInstanceId = oldController.InstanceId;
+
+            _turrets.Remove(savedInstanceId);
+            _turretSpatialDirty = true;
+            Destroy(oldController.gameObject);
+
+            var newGO = Instantiate(evolvedPrefab, _turretParent);
+            newGO.transform.position = worldPos;
+
+            var newController = newGO.GetComponent<TurretController>();
+            if (newController == null)
+                newController = newGO.AddComponent<TurretController>();
+
+            newController.InstanceId = savedInstanceId;
+            newController.Initialize(data, gridPos, specialty, dynamicTile);
+            // isEvolvedTier2: true so the swapped-in form keeps its Tier2 bonuses —
+            // EvolveTier2() is deliberately not called again, that would re-publish.
+            newController.RestoreState(level, goldInvested, evolutionPath, true);
+
+            _turrets[savedInstanceId] = newController;
+            _turretSpatialDirty = true;
+            MarkSupportAurasDirty();
+            _grid.PlaceTurret(gridPos, savedInstanceId);
+
+            _activeTurrets.RemoveAll(t => t == null || t.InstanceId == savedInstanceId);
+            _activeTurrets.Add(newController);
+
+            if (publishEvent)
+            {
+                var vfx = newGO.GetComponent<TurretVFXConfig>();
+                var sfx = newGO.GetComponent<TurretSoundConfig>();
+                vfx?.SpawnEvolve();
+                sfx?.PlayEvolve();
+
+                EventBus.Publish(new TurretEvolvedEvent
+                {
+                    TurretId = savedInstanceId,
+                    EvolutionPath = evolutionPath
+                });
+
+                Debug.Log($"[TurretManager] Tier2 evolved {data.DisplayName} -> {data.Tier2.Name}");
+            }
+
             return true;
         }
 

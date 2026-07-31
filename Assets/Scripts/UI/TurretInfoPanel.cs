@@ -219,6 +219,10 @@ namespace ETD.UI
         public void UpgradeShortcut()
         {
             if (!ResolveSelectedTurret() || _upgradeButton == null) return;
+            // Q must not skip the evolution choice. RefreshInfo only runs on select /
+            // upgrade / evolve events, so the button's interactable flag can still be
+            // stale the frame the evolve panel opens — re-check the turret directly.
+            if (_selectedTurret.IsEvolveChoicePending) return;
             if (_upgradeButton.interactable)
                 _upgradeButton.onClick.Invoke();
         }
@@ -387,14 +391,17 @@ namespace ETD.UI
             RefreshStats();
 
             int upgradeCost = _selectedTurret.GetUpgradeCost();
-            SetText(_upgradeCostText, upgradeCost.ToString());
+            SetText(_upgradeCostText, NumberFormat.Compact(upgradeCost));
             if (_upgradeButton != null)
                 _upgradeButton.interactable = _runManager != null
                     && _runManager.RunData != null
-                    && _runManager.RunData.Gold >= upgradeCost;
+                    && _runManager.RunData.Gold >= upgradeCost
+                    // The player must commit to Path A/B before levelling further,
+                    // otherwise the turret never becomes Tier2-eligible.
+                    && !_selectedTurret.IsEvolveChoicePending;
 
             int sellValue = _selectedTurret.GetSellValue();
-            SetText(_sellValueText, sellValue.ToString());
+            SetText(_sellValueText, NumberFormat.Compact(sellValue));
             if (_sellButton != null)
                 _sellButton.interactable = true;
 
@@ -533,8 +540,10 @@ namespace ETD.UI
         {
             var tile = _selectedTurret.DynamicTile;
 
+            // Compact (1.2K / 12.3M / ...) so late-game damage can't overflow the
+            // field. Attack speed and range stay raw: both are small and bounded.
             SetText(_damageText,
-                $"{_selectedTurret.Damage:F1}" + TileMod(tile, TurretStatModifier.StatType.Damage)
+                NumberFormat.Compact(_selectedTurret.Damage) + TileMod(tile, TurretStatModifier.StatType.Damage)
                 + LaserRampSuffix(_selectedTurret));
 
             SetText(_attackSpeedText,
@@ -566,6 +575,9 @@ namespace ETD.UI
         private void OnUpgradeClicked()
         {
             if (!ResolveSelectedTurret() || _runManager == null || _runManager.RunData == null) return;
+            // Checked here as well as on the button's interactable state so no entry
+            // point can spend gold to level past a pending Path A/B choice.
+            if (_selectedTurret.IsEvolveChoicePending) return;
             int cost = _selectedTurret.GetUpgradeCost();
             if (_runManager.SpendGold(cost))
             {

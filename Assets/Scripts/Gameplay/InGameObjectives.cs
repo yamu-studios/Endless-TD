@@ -256,10 +256,18 @@ namespace ETD.Gameplay
                 // Tier2 threshold here. If that already flips IsEvolvedTier2 before
                 // the StepEvolveTier2 objective is even shown, ShowObjective's
                 // entry re-check (above) catches it and completes the step.
-                if (turret.Data != null)
+                // Crossing the Tier2 threshold swaps in Tier2's EvolvedPrefab, which
+                // destroys this GameObject and spawns a replacement under the same
+                // InstanceId — so re-resolve each iteration instead of holding the
+                // stale reference (Unity's null check catches the destroyed one).
+                int guard = 0;
+                while (turret != null && turret.Data != null
+                       && turret.Level < turret.Data.EvolveLevel2
+                       && !turret.IsEvolvedTier2
+                       && ++guard < 500)
                 {
-                    while (turret.Level < turret.Data.EvolveLevel2 && !turret.IsEvolvedTier2)
-                        turret.Upgrade();
+                    turret.Upgrade();
+                    turret = ResolveFirstTurret();
                 }
                 CompleteCurrentObjective();
             }

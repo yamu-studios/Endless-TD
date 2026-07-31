@@ -182,6 +182,31 @@ namespace ETD.Grid
             if (!CanPlace(gridPos)) return false;
             return !WouldBlockPath(gridPos);
         }
+        private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+        private static readonly int ColorId = Shader.PropertyToID("_Color");
+
+        /// <summary>
+        /// Applies a dynamic tile's visuals to a cell: the per-category material,
+        /// tinted by the tile's TileColor so tiles sharing a category (there are now
+        /// 4 blessings and 4 curses) are tellable apart without hovering.
+        /// Shared by fresh-run placement and save restore so both render identically.
+        /// </summary>
+        public static void ApplyTileVisual(GridCell cell, DynamicTileData tile)
+        {
+            if (cell == null || tile == null || cell.TileRenderer == null) return;
+            if (tile.TileMaterial == null) return;
+
+            cell.TileRenderer.material = tile.TileMaterial;
+
+            // .material returns a per-renderer instance, so tinting it here cannot
+            // leak back into the shared category material asset.
+            var mat = cell.TileRenderer.material;
+            if (mat == null) return;
+
+            if (mat.HasProperty(BaseColorId)) mat.SetColor(BaseColorId, tile.TileColor);
+            else if (mat.HasProperty(ColorId)) mat.SetColor(ColorId, tile.TileColor);
+        }
+
         public void ApplyRandomSpecialties(System.Random rng, GameDatabase database)
         {
             if (database?.DynamicTiles == null || database.DynamicTiles.Length == 0) return;
@@ -224,9 +249,8 @@ namespace ETD.Grid
                 cell.Specialty = category;
                 cell.DynamicTile = tile;
 
-                // Apply visual material
-                if (tile.TileMaterial != null && cell.TileRenderer != null)
-                    cell.TileRenderer.material = tile.TileMaterial;
+                // Apply visual material + per-tile tint
+                ApplyTileVisual(cell, tile);
                 EventBus.Publish(new TileSpecialtyAppliedEvent
                 {
                     GridPos = cell.GridPos,

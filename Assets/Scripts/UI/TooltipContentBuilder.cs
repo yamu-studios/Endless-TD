@@ -156,6 +156,8 @@ namespace ETD.UI
                 EnemyType.Sprinter => "Moves very fast.",
                 EnemyType.Debuffer => "Reduces nearby turret stats.",
                 EnemyType.Buffer => "Strengthens nearby enemies.",
+                EnemyType.Regenerator => "Heals itself over time.",
+                EnemyType.Flying => "Flies straight to the exit, ignoring the path.",
                 _ => ""
             };
         }

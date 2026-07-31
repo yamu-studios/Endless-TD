@@ -45,6 +45,10 @@ namespace ETD.Enemies
         private int _pathIndex;
         private Grid.GridSystem _grid;
 
+        // Cached from Data.Type on Initialize: flying enemies use a straight
+        // entry -> exit path and ignore walking-route recalculations.
+        private bool _isFlying;
+
         // Remaining path distance (world units) from each waypoint to the exit.
         // Precomputed on path assignment so DistanceToExit stays O(1) per query.
         private readonly List<float> _remainingToExit = new();
@@ -127,9 +131,22 @@ namespace ETD.Enemies
             _berserkMaxSpeedMult = data.BerserkMaxSpeedMultiplier;
             RuntimeId = _nextRuntimeId++;
 
+            _isFlying = data.Type == EnemyType.Flying;
+
             _worldPath.Clear();
             for (int i = 0; i < gridPath.Count; i++)
                 _worldPath.Add(grid.GridToWorld(gridPath[i]));
+
+            // Flying enemies ignore the walking route: collapse the path to a single
+            // entry -> exit leg so Move() flies them straight across the map. Done
+            // before BuildRemainingToExit so "first/last" turret targeting priority
+            // measures the real (much shorter) remaining distance.
+            if (_isFlying && _worldPath.Count > 2)
+            {
+                Vector3 exit = _worldPath[_worldPath.Count - 1];
+                _worldPath.RemoveRange(1, _worldPath.Count - 2);
+                _worldPath[1] = exit;
+            }
 
             BuildRemainingToExit();
 
@@ -172,6 +189,10 @@ namespace ETD.Enemies
         public void UpdatePath(List<Vector2Int> newGridPath)
         {
             if (newGridPath == null || newGridPath.Count == 0) return;
+
+            // Flying enemies are not on the walking route, so a turret-induced path
+            // recalculation must not drag them back onto it mid-flight.
+            if (_isFlying) return;
 
             // FIX (memory-leak #1b): Reuse the existing _worldPath list instead of
             // allocating a new List<Vector3> for every enemy on every path-recalc event.
@@ -351,12 +372,13 @@ namespace ETD.Enemies
         public void TakeDamage(float damage, StatusEffectType statusType = StatusEffectType.None,
             float statusValue = 0f, float statusDuration = 0f, bool playHitVFX = true,
             bool isCritical = false, DamageNumberKind damageKind = DamageNumberKind.Normal,
-            bool showDamageNumber = true, int sourceTurretType = -1, int sourceTurretId = -1)
+            bool showDamageNumber = true, int sourceTurretType = -1, int sourceTurretId = -1,
+            float bonusArmorPierce = 0f)
         {
             if (IsDead)
                 return;
 
-            float effectiveDamage = Mathf.Max(ApplyMitigation(damage, sourceTurretType), 1f);
+            float effectiveDamage = Mathf.Max(ApplyMitigation(damage, sourceTurretType, bonusArmorPierce), 1f);
             CurrentHealth -= effectiveDamage;
             LastHitDamage = effectiveDamage;
             LastHitSourceTurretType = sourceTurretType;
@@ -660,7 +682,11 @@ namespace ETD.Enemies
         /// (TakePureDamage, ApplyNonLethalDecay) — those already bypass mitigation by
         /// design.
         /// </summary>
-        private float ApplyMitigation(float rawDamage, int sourceTurretType)
+        /// <param name="bonusArmorPierce">
+        /// Per-source armor pierce (currently from the firing turret's dynamic tile),
+        /// stacking additively with the run-wide pierce from IRunStatModifiers.
+        /// </param>
+        private float ApplyMitigation(float rawDamage, int sourceTurretType, float bonusArmorPierce = 0f)
         {
             if (rawDamage <= 0f)
                 return rawDamage;
@@ -679,6 +705,9 @@ namespace ETD.Enemies
                     affinity = Mathf.Max(0f, affinity - mods.GetAffinityPierce());
                 armor = Mathf.Max(0f, armor - mods.GetArmorPierce());
             }
+
+            if (bonusArmorPierce > 0f)
+                armor = Mathf.Max(0f, armor - bonusArmorPierce);
 
             affinity = Mathf.Clamp(affinity, -1f, 0.9f);
             armor = Mathf.Clamp(armor, 0f, 0.9f);

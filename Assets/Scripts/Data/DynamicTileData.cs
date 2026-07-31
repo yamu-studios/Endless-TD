@@ -22,7 +22,13 @@ namespace ETD.Data
 
         // Greeds (strong bonus + upgrade cost)
         BloodGreed,        // +60% damage, upgrade cost +50%
-        SacrificeGreed     // -50% upgrade cost, -25% damage
+        SacrificeGreed,    // -50% upgrade cost, -25% damage
+
+        // Appended, do not reorder — persisted by index in SaveSystem
+        // (TurretSaveData.DynamicTileType is an int cast back to this enum).
+        ThriftBlessing,    // -15% upgrade cost
+        CostlyCurse,       // +10% upgrade cost
+        PiercingGreed      // +20% armor pierce, -10% damage
     }
 
     [CreateAssetMenu(fileName = "New Dynamic Tile", menuName = "ETD/Dynamic Tile Data")]
@@ -62,7 +68,12 @@ namespace ETD.Data
             AttackSpeed,
             Range,
             UpgradeCost,
-            GoldFromKills
+            GoldFromKills,
+
+            // Appended, do not reorder (serialized by index in tile assets).
+            // Flat reduction of the target's effective Armor for this turret only,
+            // stacking with the run-wide IRunStatModifiers.GetArmorPierce().
+            ArmorPierce
         }
     }
 }

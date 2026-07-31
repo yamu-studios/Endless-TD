@@ -18,7 +18,12 @@ namespace ETD.Data
         Buffer,
 
         // v1.0 Phase 3 - appended, do not reorder. See [[etd-v1-full-release]].
-        Regenerator
+        Regenerator,
+
+        // Flying - appended, do not reorder. Ignores the walking path entirely and
+        // flies straight from the entry to the exit, so it covers far less ground
+        // and spends much less time inside turret range. Balanced by being fragile.
+        Flying
     }
 
     public enum EnemyTier

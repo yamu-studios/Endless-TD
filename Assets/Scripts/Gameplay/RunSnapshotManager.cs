@@ -320,8 +320,9 @@ namespace ETD.Gameplay
                 if (tileData != null)
                 {
                     cell.DynamicTile = tileData;
-                    if (tileData.TileMaterial != null && cell.TileRenderer != null)
-                        cell.TileRenderer.material = tileData.TileMaterial;
+                    // Same helper as fresh-run placement so a resumed run shows the
+                    // identical per-tile tint rather than an untinted material.
+                    Grid.GridSystem.ApplyTileVisual(cell, tileData);
                     EventBus.Publish(new TileSpecialtyAppliedEvent
                     {
                         GridPos = pos,

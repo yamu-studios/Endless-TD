@@ -43,13 +43,21 @@ namespace ETD.UI
 
             var specialty = (TileSpecialty)evt.Specialty;
 
-            // Find matching DynamicTileData from database
-            DynamicTileData tileData = FindTileData(specialty);
+            // The event only carries the category, but the cell already holds the exact
+            // tile that was placed. Previously this looked up "first tile in the database
+            // with this category", which always resolved to the original Blessed/Cursed/
+            // Greed and made every other variant invisible in the tooltip.
+            DynamicTileData tileData = cell.DynamicTile ?? FindTileData(specialty);
             if (tileData == null) return;
 
             AssignTooltip(cell.TileObject, tileData);
         }
 
+        /// <summary>
+        /// Fallback only, for cells whose DynamicTile was not set (e.g. legacy saves).
+        /// Returns the first tile of the category, so it cannot distinguish variants —
+        /// prefer GridCell.DynamicTile.
+        /// </summary>
         private DynamicTileData FindTileData(TileSpecialty specialty)
         {
             if (_database?.DynamicTiles == null) return null;
