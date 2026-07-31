@@ -16,7 +16,7 @@ namespace ETD.Hub
     {
         [Tooltip("Existing trait-view GameObjects (TraitsContent, SelectedTraits, TraitDetails) — toggled off while the spell view is showing.")]
         [SerializeField] private GameObject[] _traitsGroup;
-        [Tooltip("New spell-view GameObjects (SpellsContent, SpellDetails) — toggled off while the trait view is showing.")]
+        [Tooltip("New spell-view GameObjects (SpellsContent) — toggled off while the trait view is showing. There is no spell details panel: each spawned row carries its own cooldown and explanation.")]
         [SerializeField] private GameObject[] _spellsGroup;
         [SerializeField] private Button _toggleButton;
         [SerializeField] private TMP_Text _toggleButtonText;
@@ -54,8 +54,9 @@ namespace ETD.Hub
                 for (int i = 0; i < _spellsGroup.Length; i++)
                     if (_spellsGroup[i] != null) _spellsGroup[i].SetActive(_showingSpells);
 
-            if (_showingSpells)
-                _spellPlanningUI?.Refresh();
+            // No explicit Refresh() here: SpellsContent is in _spellsGroup, so
+            // activating it fires SpellPlanningUI.OnEnable, which rebuilds the
+            // list itself. Calling it here too would spawn every row twice.
 
             if (_toggleButtonText != null)
                 _toggleButtonText.text = _showingSpells

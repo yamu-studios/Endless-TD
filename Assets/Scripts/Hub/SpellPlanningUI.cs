@@ -1,14 +1,15 @@
 // ============================================================================
-// ETD.Hub - SpellPlanningUI.cs  [NEW]
+// ETD.Hub - SpellPlanningUI.cs
 // v1.0 active spell system planning-tab picker (see [[etd-v1-full-release]]
-// Phase 4). Static slots (one per shipped spell, matched by array index) rather
-// than a dynamically-instantiated list like PlanningWindowUI's traits — there
-// are only 4 spells and no unlock/rarity system for them, so a data-driven list
-// would be pure overhead for content this small.
+// Phase 4). Instantiates one SpellPlanningItem per shipped spell from a prefab,
+// the same data-driven shape as PlanningWindowUI's trait list — adding a spell
+// to the GameDatabase is now the only step needed to see it in the hub.
+//
+// No shared details panel: each row carries its own cooldown + explanation, so
+// unlike the trait tab there is nothing left for a side panel to show.
 // ============================================================================
+using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UI;
-using TMPro;
 using ETD.Core;
 using ETD.Data;
 
@@ -19,54 +20,63 @@ namespace ETD.Hub
         [Header("Data")]
         [SerializeField] private GameDatabase _database;
 
-        [Header("Spell Slots (index-matched to _database.Spells)")]
-        [SerializeField] private SpellTabItem[] _items;
+        [Header("Spawning")]
+        [SerializeField] private SpellPlanningItem _itemPrefab;
+        [Tooltip("Parent for the spawned rows — normally the layout group under SpellsContent.")]
+        [SerializeField] private Transform _itemContainer;
 
-        [Header("Info Panel")]
-        [SerializeField] private Image _infoIcon;
-        [SerializeField] private TMP_Text _infoName;
-        [SerializeField] private TMP_Text _infoDescription;
-        [SerializeField] private TMP_Text _infoCooldownText;
-
+        private readonly List<SpellPlanningItem> _items = new List<SpellPlanningItem>();
         private string _selectedSpellId;
+        private int _upgradeLevel;
 
         /// <summary>Exposed for HubTutorialAnimator to find an item to pulse.</summary>
-        public System.Collections.Generic.IReadOnlyList<SpellTabItem> Items => _items;
+        public IReadOnlyList<SpellPlanningItem> Items => _items;
 
         private void OnEnable() => Refresh();
 
         public void Refresh()
         {
-            var save = SaveSystem.Load();
-            _selectedSpellId = save.SelectedSpellId;
-
-            if (_database == null || _database.Spells == null || _items == null)
+            if (_database == null || _database.Spells == null ||
+                _itemPrefab == null || _itemContainer == null)
                 return;
 
-            SpellData toShow = null;
+            var save = SaveSystem.Load();
+            _selectedSpellId = save.SelectedSpellId;
+            _upgradeLevel = Mathf.Max(0, save.ShopSpellUpgradeLevel);
 
-            for (int i = 0; i < _items.Length; i++)
+            // No saved pick (or it points at a spell that no longer ships): fall
+            // back to the first entry so the tab is never shown with nothing
+            // highlighted, and persist it so the run agrees with the hub.
+            if (_database.GetSpell(_selectedSpellId) == null && _database.Spells.Length > 0)
             {
-                if (_items[i] == null) continue;
-
-                if (i >= _database.Spells.Length || _database.Spells[i] == null)
+                var fallback = _database.Spells[0];
+                if (fallback != null)
                 {
-                    _items[i].gameObject.SetActive(false);
-                    continue;
+                    _selectedSpellId = fallback.Id;
+                    SaveSystem.SaveSelectedSpell(_selectedSpellId);
                 }
-
-                var spell = _database.Spells[i];
-                bool selected = spell.Id == _selectedSpellId;
-                _items[i].Setup(spell, selected, OnSpellClicked);
-
-                if (selected) toShow = spell;
             }
 
-            if (toShow == null && _database.Spells.Length > 0)
-                toShow = _database.Spells[0];
+            Rebuild();
+        }
 
-            if (toShow != null)
-                ShowInfo(toShow);
+        private void Rebuild()
+        {
+            for (int i = 0; i < _items.Count; i++)
+                if (_items[i] != null)
+                    Destroy(_items[i].gameObject);
+            _items.Clear();
+
+            for (int i = 0; i < _database.Spells.Length; i++)
+            {
+                var spell = _database.Spells[i];
+                if (spell == null) continue;
+
+                var item = Instantiate(_itemPrefab, _itemContainer);
+                item.gameObject.name = "SpellItem_" + spell.Id;
+                item.Setup(spell, _upgradeLevel, spell.Id == _selectedSpellId, OnSpellClicked);
+                _items.Add(item);
+            }
         }
 
         private void OnSpellClicked(string spellId)
@@ -74,33 +84,9 @@ namespace ETD.Hub
             _selectedSpellId = spellId;
             SaveSystem.SaveSelectedSpell(spellId);
 
-            for (int i = 0; i < _items.Length; i++)
+            for (int i = 0; i < _items.Count; i++)
                 if (_items[i] != null)
                     _items[i].SetSelected(_items[i].SpellId == spellId);
-
-            var spell = _database.GetSpell(spellId);
-            if (spell != null) ShowInfo(spell);
-        }
-
-        private void ShowInfo(SpellData spell)
-        {
-            string baseKey = "spell_" + spell.LocalizationKey;
-
-            if (_infoIcon != null)
-            {
-                _infoIcon.sprite = spell.Icon;
-                _infoIcon.enabled = spell.Icon != null;
-            }
-
-            if (_infoName != null)
-                _infoName.text = SOLocalization.GetName(baseKey, spell.DisplayName);
-
-            if (_infoDescription != null)
-                _infoDescription.text = SOLocalization.GetDesc(baseKey, spell.Description);
-
-            if (_infoCooldownText != null)
-                _infoCooldownText.text = LocalizationManager.GetFormat(
-                    "spell_cooldown_format", "Cooldown: {0}s", Mathf.RoundToInt(spell.Cooldown));
         }
     }
 }

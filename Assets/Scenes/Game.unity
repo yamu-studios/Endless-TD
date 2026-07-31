@@ -12568,7 +12568,6 @@ RectTransform:
   m_Children:
   - {fileID: 23414972}
   - {fileID: 1823176815}
-  - {fileID: 1179044064}
   - {fileID: 1481889503}
   m_Father: {fileID: 1868852686}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -14667,9 +14666,9 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 1514057470}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 1, y: 0.5}
-  m_AnchorMax: {x: 1, y: 0.5}
-  m_AnchoredPosition: {x: -105, y: 15}
+  m_AnchorMin: {x: 0.5, y: 0}
+  m_AnchorMax: {x: 0.5, y: 0}
+  m_AnchoredPosition: {x: -45, y: 30}
   m_SizeDelta: {x: 90, y: 30}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &452459266
@@ -20261,7 +20260,7 @@ RectTransform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 575767805}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: -0.000083622996}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -27075,7 +27074,7 @@ MonoBehaviour:
   m_StickAction:
     m_UseReference: 0
     m_Action:
-      m_Name: 
+      m_Name: Stick
       m_Type: 0
       m_ExpectedControlType: 
       m_Id: b048d300-f954-4905-a64e-28b4e45be49b
@@ -27087,7 +27086,7 @@ MonoBehaviour:
   m_LeftButtonAction:
     m_UseReference: 0
     m_Action:
-      m_Name: 
+      m_Name: Left Button
       m_Type: 0
       m_ExpectedControlType: 
       m_Id: 77db3089-e820-479b-8109-02dc64078aed
@@ -27099,7 +27098,7 @@ MonoBehaviour:
   m_MiddleButtonAction:
     m_UseReference: 0
     m_Action:
-      m_Name: 
+      m_Name: Middle Button
       m_Type: 0
       m_ExpectedControlType: 
       m_Id: 61f4a6bf-61a3-4bb0-add6-ca7daf34aaa8
@@ -27111,7 +27110,7 @@ MonoBehaviour:
   m_RightButtonAction:
     m_UseReference: 0
     m_Action:
-      m_Name: 
+      m_Name: Right Button
       m_Type: 0
       m_ExpectedControlType: 
       m_Id: e797a8d7-326a-4b28-ae9f-c039dc79ffe7
@@ -27123,7 +27122,7 @@ MonoBehaviour:
   m_ForwardButtonAction:
     m_UseReference: 0
     m_Action:
-      m_Name: 
+      m_Name: Forward Button
       m_Type: 0
       m_ExpectedControlType: 
       m_Id: f332bae4-1b24-4e2a-853b-3d5a841fa325
@@ -27135,7 +27134,7 @@ MonoBehaviour:
   m_BackButtonAction:
     m_UseReference: 0
     m_Action:
-      m_Name: 
+      m_Name: Back Button
       m_Type: 0
       m_ExpectedControlType: 
       m_Id: 4159b09a-2751-4d86-8f36-ea196409ca57
@@ -27147,7 +27146,7 @@ MonoBehaviour:
   m_ScrollWheelAction:
     m_UseReference: 0
     m_Action:
-      m_Name: 
+      m_Name: Scroll Wheel
       m_Type: 0
       m_ExpectedControlType: 
       m_Id: 1512a968-5296-47c3-ab76-f33d73174f33
@@ -30213,11 +30212,11 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 1514057470}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0.5}
-  m_AnchorMax: {x: 0, y: 0.5}
-  m_AnchoredPosition: {x: 10, y: 22.5}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 45, y: 45}
-  m_Pivot: {x: 0, y: 1}
+  m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &810210573
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -35554,7 +35553,7 @@ MonoBehaviour:
   m_CellSize: {x: 140, y: 190}
   m_Spacing: {x: 10, y: 0}
   m_Constraint: 1
-  m_ConstraintCount: 7
+  m_ConstraintCount: 10
 --- !u!114 &930884919
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -38987,8 +38986,8 @@ RectTransform:
   m_LocalScale: {x: 0, y: 0, z: 0}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 1966338142}
   - {fileID: 19205393}
+  - {fileID: 1179044064}
   - {fileID: 1868852686}
   - {fileID: 841885887}
   - {fileID: 225299062}
@@ -46517,18 +46516,18 @@ RectTransform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1179044063}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0.00005574867}
+  m_LocalPosition: {x: 0, y: 0, z: 0.00011149734}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1514057470}
-  m_Father: {fileID: 389948876}
+  m_Father: {fileID: 1021095671}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 1, y: 0.5}
-  m_AnchorMax: {x: 1, y: 0.5}
-  m_AnchoredPosition: {x: -440, y: 0}
-  m_SizeDelta: {x: 160, y: 50}
-  m_Pivot: {x: 0, y: 1}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 50, y: 50}
+  m_SizeDelta: {x: 100, y: 100}
+  m_Pivot: {x: 0, y: 0}
 --- !u!114 &1179044065
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -53032,7 +53031,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 1}
   m_AnchorMax: {x: 0.5, y: 1}
-  m_AnchoredPosition: {x: -149.99997, y: -25}
+  m_AnchoredPosition: {x: -150, y: -25}
   m_SizeDelta: {x: 770, y: 50}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &1301408570
@@ -57346,10 +57345,10 @@ MonoBehaviour:
     m_Right: 0
     m_Top: 0
     m_Bottom: 0
-  m_ChildAlignment: 3
+  m_ChildAlignment: 4
   m_StartCorner: 0
   m_StartAxis: 0
-  m_CellSize: {x: 50, y: 50}
+  m_CellSize: {x: 40, y: 40}
   m_Spacing: {x: 15, y: 0}
   m_Constraint: 2
   m_ConstraintCount: 1
@@ -77522,6 +77521,7 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
+  - {fileID: 1966338142}
   - {fileID: 389948876}
   - {fileID: 575767806}
   - {fileID: 1301408569}
@@ -80986,17 +80986,17 @@ RectTransform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1966338141}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0.00005574867}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 2021690529}
-  m_Father: {fileID: 1021095671}
+  m_Father: {fileID: 1868852686}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 25, y: 95}
-  m_SizeDelta: {x: 350, y: 70}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 325, y: -70}
+  m_SizeDelta: {x: 300, y: 50}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &1966338143
 MonoBehaviour:
@@ -81018,7 +81018,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 4d8d4281343c1cc43a1c05abd90ac4e6, type: 3}
+  m_Sprite: {fileID: 21300000, guid: d317f541f1dc5064795598511a14d769, type: 3}
   m_Type: 1
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -83570,7 +83570,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 4d8d4281343c1cc43a1c05abd90ac4e6, type: 3}
+  m_Sprite: {fileID: 21300000, guid: d317f541f1dc5064795598511a14d769, type: 3}
   m_Type: 1
   m_PreserveAspect: 0
   m_FillCenter: 1
