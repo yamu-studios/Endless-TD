@@ -10,6 +10,7 @@
 //   E              — sell selected turret
 // ============================================================================
 using UnityEngine;
+using UnityEngine.InputSystem;
 using ETD.Core;
 using ETD.Turrets;
 using ETD.UI;
@@ -60,9 +61,52 @@ namespace ETD.Input
             // ---------------------------------------------------------------
             if (state == GameState.Preparation || state == GameState.WaveActive)
             {
-                if (KeybindingManager.GetKeyDown(KeybindAction.UpgradeSelectedTurret)) _turretInfoPanel?.UpgradeShortcut();
-                if (KeybindingManager.GetKeyDown(KeybindAction.SellSelectedTurret)) _turretInfoPanel?.SellShortcut();
+                bool upgrade = KeybindingManager.GetKeyDown(KeybindAction.UpgradeSelectedTurret);
+                bool sell    = KeybindingManager.GetKeyDown(KeybindAction.SellSelectedTurret);
+                bool cast    = KeybindingManager.GetKeyDown(KeybindAction.CastSpell);
+
+                // Fixed gamepad shortcuts, mirroring the keyboard bindings above.
+                // These are deliberately NOT rebindable: KeybindingManager stores
+                // KeyCodes for the keyboard, and the pad is read through the new Input
+                // System, so the two cannot share one binding table.
+                var pad = Gamepad.current;
+                if (pad != null && !KeybindingManager.IsListeningForRebind)
+                {
+                    // L1 doubles as "keep placing" while a turret is being placed
+                    // (GameInputHandler), so quick-sell must not fire in that mode or a
+                    // single press would both place and sell.
+                    if (!IsPlacingTurret())
+                        sell |= pad.leftShoulder.wasPressedThisFrame;
+
+                    upgrade |= pad.rightShoulder.wasPressedThisFrame;
+                    cast    |= pad.buttonNorth.wasPressedThisFrame;   // Triangle / Y
+                }
+
+                if (upgrade) _turretInfoPanel?.UpgradeShortcut();
+                if (sell)    _turretInfoPanel?.SellShortcut();
+                if (cast)    TryCastSpell();
             }
+        }
+
+        // Cached once: GameInputHandler is not in the ServiceLocator, and a
+        // FindObject call every frame would be wasteful.
+        private ETD.Inputs.GameInputHandler _inputHandler;
+        private bool _inputHandlerResolved;
+
+        private bool IsPlacingTurret()
+        {
+            if (!_inputHandlerResolved)
+            {
+                _inputHandler = FindFirstObjectByType<ETD.Inputs.GameInputHandler>();
+                _inputHandlerResolved = true;
+            }
+            return _inputHandler != null && _inputHandler.IsPlacingTurret;
+        }
+
+        private static void TryCastSpell()
+        {
+            if (ServiceLocator.TryGet<ETD.Gameplay.SpellManager>(out var spells))
+                spells.TryCast();
         }
     }
 }

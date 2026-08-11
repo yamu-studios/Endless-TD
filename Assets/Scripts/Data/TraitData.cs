@@ -25,6 +25,12 @@ namespace ETD.Data
 
 
 
+        [Header("Turret Type Targeting")]
+        [Tooltip("When true, this trait's effect applies only to turrets of TargetTurretType. " +
+                 "Required for TurretTypeMastery; ignored by every other effect type.")]
+        public bool TargetsTurretType;
+        public TurretType TargetTurretType;
+
         [Header("Effect")]
         public TraitEffectType EffectType;
         public float EffectValue;
@@ -50,7 +56,10 @@ namespace ETD.Data
         public bool IsKeystone =>
             EffectType == TraitEffectType.FlameCovenant ||
             EffectType == TraitEffectType.FrostCovenant ||
-            EffectType == TraitEffectType.StormCovenant;
+            EffectType == TraitEffectType.StormCovenant ||
+            EffectType == TraitEffectType.VoidCovenant ||
+            EffectType == TraitEffectType.PlagueCovenant ||
+            EffectType == TraitEffectType.PrecisionCovenant;
 
         [Header("Timed Effects (Legendary traits)")]
         public float EffectDuration;
@@ -82,7 +91,14 @@ namespace ETD.Data
         Control,
         Burst,
         AntiTank,
-        Swarm
+        Swarm,
+
+        // v1.0 Phase 5 - appended, do not reorder.
+        Basic,
+        Radar,
+        Void,
+        Toxin,
+        Railgun
     }
 
     public enum TraitEffectType
@@ -125,6 +141,20 @@ namespace ETD.Data
         // fixed constants in RunStatModifiers.
         FlameCovenant,   // + burn damage, - global direct damage
         FrostCovenant,   // + damage vs slowed/frozen, - attack speed
-        StormCovenant    // +1 chain target & + chain damage, - global direct damage
+        StormCovenant,   // +1 chain target & + chain damage, - global direct damage
+
+        // v1.0 Phase 5 - appended, do not reorder.
+        // Per-turret-type mastery: like SpecCardEffectType.TurretTypeSignature, one
+        // effect type specialised by TraitData.TargetTurretType instead of ten enum
+        // entries. Grants +EffectValue damage and +EffectValue/2 attack speed to
+        // turrets of that type only.
+        TurretTypeMastery,
+
+        // Three further Keystone Covenants for the v1.0 turret types. Same contract as
+        // Flame/Frost/Storm: EffectValue is the upside magnitude, downsides are fixed
+        // constants in RunStatModifiers, and only one Covenant may be active per run.
+        VoidCovenant,      // + Void Weaken potency & global armor pierce, - all crit chance
+        PlagueCovenant,    // + Toxin pure damage & it leaks to all turrets, - burn damage
+        PrecisionCovenant  // + Railgun Expose potency & crit damage, - chain damage & attack speed
     }
 }

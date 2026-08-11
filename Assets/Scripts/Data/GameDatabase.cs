@@ -29,6 +29,11 @@ namespace ETD.Data
         [Header("Dynamic Tiles")]
         public DynamicTileData[] DynamicTiles;
 
+        [Tooltip("Spec card rarity weights and pity settings. Held here as well as on " +
+                 "RunManager so the wiki can show the offer rules from the Hub, where no " +
+                 "RunManager exists. Point both at the same asset.")]
+        public SpecCardPitySettings PitySettings;
+
         [Header("Grade Colors")]
         public Color[] GradeColors;
 

@@ -125,6 +125,21 @@ namespace ETD.Core
         public float[] SpecBonuses;        // serialized as flat array of (int type, float value) pairs
         public int[] SpecBonusTypes;
         public int[] SpecStacks;           // parallel to SpecBonusTypes; how many of each card were taken (null in old saves)
+        // Per-turret-type spec bonuses (RunData.SpecTurretBonuses). Four parallel
+        // arrays because Unity's JsonUtility cannot serialize a tuple-keyed
+        // dictionary. All null in saves made before v1.0 Phase 5.
+        public int[] SpecTurretBonusTypes;
+        public int[] SpecTurretBonusTurretTypes;
+        public float[] SpecTurretBonuses;
+        public int[] SpecTurretStacks;
+        // The spell is locked in for the lifetime of a run. Storing it (and its live
+        // cooldown) on the snapshot rather than reading SaveData.SelectedSpellId on
+        // resume stops two exploits: swapping spells mid-run by leaving to the Hub,
+        // and refreshing a long cooldown by leaving and continuing.
+        // Empty / -1 in snapshots written before this existed.
+        public string SelectedSpellId = "";
+        public float SpellCooldownRemaining = -1f;
+
         public PlacedTurretSnapshot[] PlacedTurrets;
         // Cumulative counters restored so run-dynamic traits (e.g. "damage per
         // owned turret", "damage per gold spent") keep their value across

@@ -41,13 +41,19 @@ namespace ETD.Hub
                 return;
 
             var save = SaveSystem.Load();
-            _selectedSpellId = save.SelectedSpellId;
             _upgradeLevel = Mathf.Max(0, save.ShopSpellUpgradeLevel);
+
+            // The planning pick is always free to change: it is the choice for the NEXT
+            // fresh run. A resumable run does not own this tab — it carries its own spell
+            // on its snapshot, and RunSnapshotManager re-applies that on resume, so
+            // changing the pick here can never affect a run already in progress.
+            _selectedSpellId = save.SelectedSpellId;
 
             // No saved pick (or it points at a spell that no longer ships): fall
             // back to the first entry so the tab is never shown with nothing
             // highlighted, and persist it so the run agrees with the hub.
-            if (_database.GetSpell(_selectedSpellId) == null && _database.Spells.Length > 0)
+            if (_database.GetSpell(_selectedSpellId) == null
+                && _database.Spells.Length > 0)
             {
                 var fallback = _database.Spells[0];
                 if (fallback != null)

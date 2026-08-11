@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: efd80884b581d6f4495c2c9378e542f7
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 375124
+  packageName: Money VFX - URP
+  packageVersion: 1.0.1
+  assetPath: Assets/Vefects/Money VFX/VFX/Materials/M_VFX_Metallic_Dither_01.mat
+  uploadId: 908156

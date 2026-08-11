@@ -211,6 +211,34 @@ namespace ETD.Data
         public bool DebuffEnemySpeed;          // TU006B: -18% enemy speed
         public float EnemySlowAura = 0.18f;
 
+        [Header("Radar Evolutions")]
+        [Tooltip("TU007A 'Fire Control Array': the reveal sweep now tags EVERY enemy in " +
+                 "range, not just stealth ones, and tagged enemies take amplified damage " +
+                 "from all sources. This is what stops an un-evolved radar from being a " +
+                 "dead slot in waves that contain no stealth enemies.")]
+        public bool MarkEnemies;
+        [Tooltip("Damage amplification applied to marked enemies (0.18 = +18% damage taken). " +
+                 "Folds in additively with Railgun's Expose rather than multiplying it, so a " +
+                 "radar + railgun corner amplifies strongly but not explosively.")]
+        public float MarkDamageAmp = 0.18f;
+        [Tooltip("Extra mark amplification per radar level (0.006 = +0.6%/level).")]
+        public float MarkAmpPerLevel = 0.006f;
+        [Tooltip("Tier 2 only: seconds a mark persists after the enemy leaves reveal range. " +
+                 "0 on Tier 1, so the mark is strictly positional until then.")]
+        public float MarkLingerDuration;
+
+        [Tooltip("TU007B 'Spotter Uplink': allied turrets inside the reveal radius can " +
+                 "target stealth enemies anywhere in their own range, not just enemies " +
+                 "currently inside the radar bubble.")]
+        public bool ShareStealthVision;
+        [Tooltip("Range bonus granted to allied turrets inside the reveal radius (0.20 = +20%).")]
+        public float AllyRangeAura;
+        [Tooltip("Extra ally range aura per radar level (0.005 = +0.5%/level).")]
+        public float AllyRangeAuraPerLevel;
+        [Tooltip("Tier 2 only: additive crit damage multiplier granted to allied turrets " +
+                 "inside the reveal radius (0.15 = +15% crit damage).")]
+        public float AllyCritDamageAura;
+
         [Header("Tier 2 (Lv 25, shared, see [[etd-v1-full-release]])")]
         [Tooltip("Basic's Tier2: additive bonus on top of TurretData.ArmorBreakPercent while this tier is active.")]
         public float ArmorBreakPercentBonus;
@@ -226,5 +254,15 @@ namespace ETD.Data
         public float ToxinPurePercentBonus;
         [Tooltip("Railgun's Tier2: additive bonus on top of TurretData.ExposePercent while this tier is active.")]
         public float ExposePercentBonus;
+        [Tooltip("Radar's Tier2: fraction of a marked enemy's Armor that is stripped " +
+                 "(0.4 = -40% armor). Multiplicative on Armor, applied before the run-wide " +
+                 "ArmorPierce subtraction so the two stack without going negative.")]
+        public float MarkArmorShredBonus;
+        [Tooltip("Radar's Tier2: the radar itself pulses marked enemies for this fraction of " +
+                 "their CURRENT HP per second (0.02 = 2%/s). Deliberately a radar-driven " +
+                 "pulse rather than a per-hit bonus — a per-hit percent would be multiplied " +
+                 "by laser tick rate and break at high attack speeds. Counts toward " +
+                 "percent-HP damage tracking.")]
+        public float MarkCurrentHPPercentPerSecond;
     }
 }

@@ -294,6 +294,7 @@ MonoBehaviour:
   _innateLaserRampPerSecond: 0.08
   _innateLaserRampCap: 1
   _laserExecuteMissingHPPercent: 0.03
+  _plagueBaseToxinPercent: 0.02
   _identityScalingPerLevel: 0.01
   _identityScalingCap: 0.5
   _burnHitPercent: 0.25
@@ -643,7 +644,7 @@ Transform:
   - {fileID: 6158991618104624139}
   - {fileID: 5718481397243232736}
   m_Father: {fileID: 5292993119941675692}
-  m_LocalEulerAnglesHint: {x: 0, y: 180, z: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &5977291845955314656
 PrefabInstance:
   m_ObjectHideFlags: 0

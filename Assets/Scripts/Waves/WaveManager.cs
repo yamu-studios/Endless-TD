@@ -17,22 +17,25 @@ namespace ETD.Waves
     public class WaveManager : MonoBehaviour
     {
         [Header("Wave Budget")]
-        [SerializeField] private int _baseBudget = 50;
-        [SerializeField] private int _budgetPerWave = 8;
-        [SerializeField] private float _budgetQuadraticScale = 0.3f;
+        // Initializers reference the shared constants rather than repeating the numbers,
+        // so the in-game wiki (which reads the constants) cannot drift from the tuning
+        // a fresh WaveManager actually starts with.
+        [SerializeField] private int _baseBudget = BalanceConstants.WaveBaseBudget;
+        [SerializeField] private int _budgetPerWave = BalanceConstants.WaveBudgetPerWave;
+        [SerializeField] private float _budgetQuadraticScale = BalanceConstants.WaveBudgetQuadraticScale;
 
         [Header("Spawning")]
-        [SerializeField] private float _baseSpawnInterval = 0.6f;
-        [SerializeField] private float _spawnIntervalReduction = 0.005f;
-        [SerializeField] private float _minSpawnInterval = 0.2f;
+        [SerializeField] private float _baseSpawnInterval = BalanceConstants.WaveBaseSpawnInterval;
+        [SerializeField] private float _spawnIntervalReduction = BalanceConstants.WaveSpawnIntervalReduction;
+        [SerializeField] private float _minSpawnInterval = BalanceConstants.WaveMinSpawnInterval;
         [SerializeField] private float _waveStartDelay = 0.5f;
 
         [Header("Elite / Boss Waves")]
-        [SerializeField] private int _eliteEveryNWaves = 5;
-        [SerializeField] private int _bossEveryNWaves = 25;
+        [SerializeField] private int _eliteEveryNWaves = GameConstants.ELITE_WAVE_INTERVAL;
+        [SerializeField] private int _bossEveryNWaves = GameConstants.BOSS_WAVE_INTERVAL;
         [SerializeField] private float _eliteSpawnDelay = 1.5f;
         [SerializeField] private float _bossSpawnDelay = 3.0f;
-        [SerializeField] private int _eliteFrequencyDoubleWave = 75;
+        [SerializeField] private int _eliteFrequencyDoubleWave = GameConstants.INCREASED_ELITE_FREQUENCY_WAVE;
 
         private GameDatabase _db;
         private EnemyManager _enemyManager;
@@ -304,7 +307,7 @@ namespace ETD.Waves
 
         private int GetEliteCount(int wave)
         {
-            int count = 1 + wave / 15;
+            int count = 1 + wave / BalanceConstants.EliteCountWaveStep;
             if (wave >= _eliteFrequencyDoubleWave) count *= 2;
             return count;
         }

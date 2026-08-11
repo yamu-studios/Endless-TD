@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 79c33fafc50f69a428214d672e443f58
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 375124
+  packageName: Money VFX - URP
+  packageVersion: 1.0.1
+  assetPath: Assets/Vefects/Money VFX/VFX/Shaders/SH_Vefects_URP_VFX_Opaque_Dither_01.shader
+  uploadId: 908156

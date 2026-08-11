@@ -100,6 +100,28 @@ namespace ETD.Gameplay
             snap.SpecBonuses = values.ToArray();
             snap.SpecStacks = stacks.ToArray();
 
+            // Same treatment for the per-turret-type bonuses, flattened into parallel
+            // arrays since the dictionary key is a tuple.
+            var turretEffects = new List<int>();
+            var turretTypes = new List<int>();
+            var turretValues = new List<float>();
+            var turretStacks = new List<int>();
+            if (run.SpecTurretBonuses != null)
+                foreach (var kvp in run.SpecTurretBonuses)
+                {
+                    turretEffects.Add((int)kvp.Key.Item1);
+                    turretTypes.Add((int)kvp.Key.Item2);
+                    turretValues.Add(kvp.Value);
+                    int stackCount = 1;
+                    if (run.SpecTurretStacks != null && run.SpecTurretStacks.TryGetValue(kvp.Key, out int ts))
+                        stackCount = ts;
+                    turretStacks.Add(stackCount);
+                }
+            snap.SpecTurretBonusTypes = turretEffects.ToArray();
+            snap.SpecTurretBonusTurretTypes = turretTypes.ToArray();
+            snap.SpecTurretBonuses = turretValues.ToArray();
+            snap.SpecTurretStacks = turretStacks.ToArray();
+
             // Serialize placed turrets
             var turretSnaps = new List<PlacedTurretSnapshot>();
             if (_turretManager != null)
@@ -144,6 +166,16 @@ namespace ETD.Gameplay
                 }
             }
             snap.TileSpecialties = tileSnaps.ToArray();
+
+            // Freeze the run's spell and its live cooldown into the snapshot, so a
+            // resume cannot swap the spell or wipe a cooldown that was still ticking.
+            if (ServiceLocator.TryGet<SpellManager>(out var spellManager))
+            {
+                snap.SelectedSpellId = spellManager.SelectedSpell != null
+                    ? spellManager.SelectedSpell.Id
+                    : "";
+                snap.SpellCooldownRemaining = spellManager.CooldownRemaining;
+            }
 
             var save = SaveSystem.Load();
             save.HasSavedRun = true;
@@ -218,6 +250,11 @@ namespace ETD.Gameplay
             if (ServiceLocator.TryGet<ETD.Traits.TraitManager>(out var traitManager))
                 traitManager.Initialize(_database, run.ActiveTraitIds);
 
+            // The run's spell is fixed at start; restore it and its remaining cooldown
+            // instead of letting the current Hub selection apply.
+            if (ServiceLocator.TryGet<SpellManager>(out var spellManager))
+                spellManager.RestoreFromSnapshot(snap.SelectedSpellId, snap.SpellCooldownRemaining);
+
             // Restore run-frozen re-roll tokens. Do not overwrite the global shop save;
             // purchases made after this snapshot should remain for future fresh runs,
             // but must not affect this continued run.
@@ -238,6 +275,23 @@ namespace ETD.Gameplay
                         ? snap.SpecStacks[i]
                         : 1;
                     run.SpecStacks[type] = Mathf.Max(1, stackCount);
+                }
+
+            run.SpecTurretBonuses?.Clear();
+            run.SpecTurretStacks?.Clear();
+            if (snap.SpecTurretBonusTypes != null && snap.SpecTurretBonusTurretTypes != null
+                && snap.SpecTurretBonuses != null)
+                for (int i = 0; i < snap.SpecTurretBonusTypes.Length
+                    && i < snap.SpecTurretBonusTurretTypes.Length
+                    && i < snap.SpecTurretBonuses.Length; i++)
+                {
+                    var key = ((SpecCardEffectType)snap.SpecTurretBonusTypes[i],
+                               (TurretType)snap.SpecTurretBonusTurretTypes[i]);
+                    run.SpecTurretBonuses[key] = snap.SpecTurretBonuses[i];
+                    int stackCount = (snap.SpecTurretStacks != null && i < snap.SpecTurretStacks.Length)
+                        ? snap.SpecTurretStacks[i]
+                        : 1;
+                    run.SpecTurretStacks[key] = Mathf.Max(1, stackCount);
                 }
 
             // FIX 3: Restore tile specialties EXACTLY â skip ApplyRandomSpecialties

@@ -57,6 +57,22 @@ namespace ETD.Enemies
         private readonly EnemyModifierStack _modifiers = new();
         private int _radarRevealCount;
 
+        // Latches once this enemy has ever been radar-revealed, so
+        // StealthEnemyRevealedEvent fires once per enemy rather than per re-entry
+        // into radar range. Reset in Initialize because enemies are pooled.
+        private bool _hasBeenRadarRevealed;
+
+        // Radar Path A "Fire Control Array" mark. Unlike the reveal refcount above this
+        // is a timed value rather than an enter/exit refcount: Tier 2 lets the mark
+        // linger after the enemy leaves radar range, and a timer expresses that without
+        // a second bookkeeping list on the turret. Strongest radar wins (values are
+        // max'd on refresh), so stacking radars on one corner does not stack the amp.
+        private float _radarMarkTimer;
+        private float _radarMarkAmp;
+        private float _radarMarkArmorShred;
+
+        public bool IsRadarMarked => _radarMarkTimer > 0f;
+
         private static IDamageStatsSink _damageStatsSink;
         private static bool _damageStatsSinkResolved;
 
@@ -78,11 +94,11 @@ namespace ETD.Enemies
         [Tooltip("Fallback per-enemy freeze immunity (seconds) applied after a freeze ends " +
                  "when the freeze source does not specify its own. Prevents permanent " +
                  "freeze-lock from fast re-application.")]
-        [SerializeField] private float _defaultFreezeImmunity = 4f;
+        [SerializeField] private float _defaultFreezeImmunity = BalanceConstants.DefaultFreezeImmunity;
 
         [Tooltip("While an enemy is freeze-immune, an incoming freeze is downgraded to a " +
                  "slow of this strength for its duration, so Frost still contributes.")]
-        [SerializeField, Range(0f, 1f)] private float _freezeLockoutSlow = 0.5f;
+        [SerializeField, Range(0f, 1f)] private float _freezeLockoutSlow = BalanceConstants.FreezeLockoutSlow;
 
         // Time (Time.time) until which this enemy cannot be re-frozen.
         private float _freezeImmuneUntil;
@@ -125,6 +141,10 @@ namespace ETD.Enemies
             IsStealth = data.Type == EnemyType.Stealth;
             _radarRevealCount = 0;
             IsRevealed = false;
+            _hasBeenRadarRevealed = false; // enemies are pooled; clear the latch on reuse
+            _radarMarkTimer = 0f;
+            _radarMarkAmp = 0f;
+            _radarMarkArmorShred = 0f;
             IsDead = false;
             _hasSplit = false;
             _splitCount = data.SplitCount;
@@ -288,6 +308,7 @@ namespace ETD.Enemies
             if (IsDead || _worldPath.Count == 0) return;
 
             UpdateStatusEffects(deltaTime);
+            UpdateRadarMark(deltaTime);
             Move(deltaTime);
 
             if (Data != null && Data.Type == EnemyType.Regenerator && Data.RegenPercentPerSecond > 0f
@@ -378,7 +399,8 @@ namespace ETD.Enemies
             if (IsDead)
                 return;
 
-            float effectiveDamage = Mathf.Max(ApplyMitigation(damage, sourceTurretType, bonusArmorPierce), 1f);
+            float effectiveDamage = Mathf.Max(ApplyMitigation(damage, sourceTurretType, bonusArmorPierce),
+                BalanceConstants.MinDamagePerHit);
             CurrentHealth -= effectiveDamage;
             LastHitDamage = effectiveDamage;
             LastHitSourceTurretType = sourceTurretType;
@@ -459,7 +481,8 @@ namespace ETD.Enemies
             if (IsDead)
                 return;
 
-            float effectiveDamage = Mathf.Max(ApplyMitigation(damage, sourceTurretType), 1f) * GetExposureMultiplier();
+            float effectiveDamage = Mathf.Max(ApplyMitigation(damage, sourceTurretType),
+                BalanceConstants.MinDamagePerHit) * GetExposureMultiplier();
             CurrentHealth -= effectiveDamage;
 
             if (CurrentHealth > 0f && remainingHpPercentDamage > 0f)
@@ -699,6 +722,12 @@ namespace ETD.Enemies
             if (_modifiers.TryGetStatusValue(StatusEffectType.Weaken, out float weaken))
                 armor = Mathf.Max(0f, armor - weaken);
 
+            // Radar Tier 2 armor shred. Multiplicative on the remaining armor and applied
+            // before the flat pierce subtractions below, so shred and pierce compose
+            // instead of one making the other redundant.
+            if (_radarMarkTimer > 0f && _radarMarkArmorShred > 0f)
+                armor *= 1f - _radarMarkArmorShred;
+
             if (ServiceLocator.TryGet<IRunStatModifiers>(out var mods))
             {
                 if (affinity > 0f)
@@ -709,14 +738,20 @@ namespace ETD.Enemies
             if (bonusArmorPierce > 0f)
                 armor = Mathf.Max(0f, armor - bonusArmorPierce);
 
-            affinity = Mathf.Clamp(affinity, -1f, 0.9f);
-            armor = Mathf.Clamp(armor, 0f, 0.9f);
+            affinity = Mathf.Clamp(affinity,
+                BalanceConstants.MaxAffinityWeakness, BalanceConstants.MaxAffinityResistance);
+            armor = Mathf.Clamp(armor, 0f, BalanceConstants.MaxArmorMitigation);
 
             // Railgun's Expose status: amplifies all mitigated damage taken. Applied
             // last, after affinity/armor reduction, so it scales the target's
             // remaining effective HP rather than being cancelled out by resistance.
             float expose = _modifiers.TryGetStatusValue(StatusEffectType.Expose, out float exposeValue)
                 ? Mathf.Max(0f, exposeValue) : 0f;
+
+            // Radar Path A mark shares the Expose slot additively rather than as its own
+            // multiplier: a railgun+radar corner should amplify strongly, not explosively.
+            if (_radarMarkTimer > 0f)
+                expose += _radarMarkAmp;
 
             return rawDamage * (1f - affinity) * (1f - armor) * (1f + expose);
         }
@@ -925,6 +960,15 @@ namespace ETD.Enemies
             {
                 IsRevealed = true;
                 RevealGhostVFX();
+
+                // Progress toward the Radar unlock (Signals Mastery). Published on the
+                // first reveal only: IsRevealed drops back to false when the enemy
+                // leaves radar range, so gating on it alone would count re-entries.
+                if (!_hasBeenRadarRevealed)
+                {
+                    _hasBeenRadarRevealed = true;
+                    EventBus.Publish(new StealthEnemyRevealedEvent());
+                }
             }
         }
 
@@ -935,6 +979,47 @@ namespace ETD.Enemies
 
             _radarRevealCount = Mathf.Max(0, _radarRevealCount - 1);
             IsRevealed = _radarRevealCount > 0;
+        }
+
+        /// <summary>
+        /// Radar Path A mark. Refreshed every radar tick while the enemy is inside the
+        /// reveal radius; <paramref name="duration"/> is the tick interval plus any Tier 2
+        /// linger, so the mark simply lapses once the sweeps stop reaching this enemy.
+        /// Values are max'd rather than summed — the strongest radar wins.
+        /// </summary>
+        public void ApplyRadarMark(float damageAmp, float armorShred, float duration)
+        {
+            if (IsDead || duration <= 0f)
+                return;
+
+            if (_radarMarkTimer <= 0f)
+            {
+                // Not currently marked: adopt this radar's values outright instead of
+                // max'ing against stale ones left over from a weaker previous marker.
+                _radarMarkAmp = Mathf.Max(0f, damageAmp);
+                _radarMarkArmorShred = Mathf.Clamp01(armorShred);
+            }
+            else
+            {
+                _radarMarkAmp = Mathf.Max(_radarMarkAmp, Mathf.Max(0f, damageAmp));
+                _radarMarkArmorShred = Mathf.Max(_radarMarkArmorShred, Mathf.Clamp01(armorShred));
+            }
+
+            _radarMarkTimer = Mathf.Max(_radarMarkTimer, duration);
+        }
+
+        private void UpdateRadarMark(float deltaTime)
+        {
+            if (_radarMarkTimer <= 0f)
+                return;
+
+            _radarMarkTimer -= deltaTime;
+            if (_radarMarkTimer > 0f)
+                return;
+
+            _radarMarkTimer = 0f;
+            _radarMarkAmp = 0f;
+            _radarMarkArmorShred = 0f;
         }
 
         public void ClearRadarReveals()

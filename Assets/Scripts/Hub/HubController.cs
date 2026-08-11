@@ -18,7 +18,6 @@ namespace ETD.Hub
         [SerializeField] private GameObject _planningWindow;
         [SerializeField] private GameObject _challengesWindow;
         [SerializeField] private GameObject _shopWindow;
-        [SerializeField] private GameObject _turretWindow;
         [SerializeField] private GameObject _settingsWindow;
         [SerializeField] private GameObject _languageWindow;
         [SerializeField] private GameObject _wikiWindow;
@@ -27,7 +26,9 @@ namespace ETD.Hub
         [Header("Button Badges")]
         [SerializeField] private HubBadge _planningBadge;   // on Planning button
         [SerializeField] private HubBadge _challengesBadge; // on Challenges button
-        [SerializeField] private HubBadge _turretsBadge;    // on Turrets button
+        [Tooltip("Now lives on the Wiki button: turrets were folded into the wiki, so " +
+                 "'a new turret is available' has to surface where turrets are read about.")]
+        [SerializeField] private HubBadge _turretsBadge;
 
         [Header("Data")]
         [SerializeField] private GameDatabase _database;
@@ -134,9 +135,14 @@ namespace ETD.Hub
             ToggleWindow(_shopWindow, HubWindowType.Shop);
         }
 
+        /// <summary>
+        /// Turrets were merged into the wiki, which opens on the turret roster. Kept as a
+        /// separate entry point so any button still wired to it in a scene keeps working
+        /// rather than silently doing nothing.
+        /// </summary>
         public void OnTurretsClicked()
         {
-            ToggleWindow(_turretWindow, HubWindowType.Turrets);
+            OnWikiClicked();
         }
 
         public void OnSettingsClicked()
@@ -168,6 +174,7 @@ namespace ETD.Hub
         {
             _planningBadge?.SetVisible(HubBadgeRegistry.AnyNew(HubBadgeType.Trait));
             _challengesBadge?.SetVisible(HubBadgeRegistry.AnyNew(HubBadgeType.Challenge));
+            // Trait and turret news both surface on the wiki button now.
             _turretsBadge?.SetVisible(HubBadgeRegistry.AnyNew(HubBadgeType.Turret));
         }
         // === WINDOW MANAGEMENT ===
@@ -193,7 +200,6 @@ namespace ETD.Hub
             if (_planningWindow != null) _planningWindow.SetActive(false);
             if (_challengesWindow != null) _challengesWindow.SetActive(false);
             if (_shopWindow != null) _shopWindow.SetActive(false);
-            if (_turretWindow != null) _turretWindow.SetActive(false);
             if (_settingsWindow != null) _settingsWindow.SetActive(false);
             if (_languageWindow != null) _languageWindow.SetActive(false);
             if (_wikiWindow != null) _wikiWindow.SetActive(false);
@@ -209,16 +215,25 @@ namespace ETD.Hub
 
         private void Update()
         {
-            // Keyboard Escape or a gamepad East-button press (fixed binding, see
-            // [[etd-v1-full-release]] Phase 5) both back out of an open window.
-            bool keyboardCancel = Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame;
+            // A keybinding row is capturing the next key press — do not also act on it.
+            if (KeybindingManager.IsListeningForRebind || KeybindingManager.ShouldSuppressGameplayShortcuts)
+                return;
+
+            // Routed through KeybindingManager rather than a hardcoded Escape, so the
+            // Hub follows whatever PauseOrCancel is rebound to — same as in-game.
+            // Gamepad East is a fixed binding (see [[etd-v1-full-release]] Phase 5).
+            bool keyboardCancel = KeybindingManager.GetKeyDown(KeybindAction.PauseOrCancel);
             bool gamepadCancel = Gamepad.current != null && Gamepad.current.buttonEast.wasPressedThisFrame;
 
-            if (keyboardCancel || gamepadCancel)
-            {
-                if (_activeWindow != null)
-                    CloseAllWindows();
-            }
+            if (!keyboardCancel && !gamepadCancel)
+                return;
+
+            // A window is open: back out of it. Nothing open: open Settings, matching
+            // the in-game behaviour where Escape falls through to the menu.
+            if (_activeWindow != null)
+                CloseAllWindows();
+            else
+                OnSettingsClicked();
         }
 
         public Color GetColor(SpecCardRarity rarity)

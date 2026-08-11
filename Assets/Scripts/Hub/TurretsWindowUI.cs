@@ -155,7 +155,7 @@ namespace ETD.Hub
             }
 
             // Evolution paths
-            bool hasPaths = td.Type != TurretType.Radar && (td.PathA != null || td.PathB != null);
+            bool hasPaths = td.PathA != null || td.PathB != null;
             if (_evolutionSection != null) _evolutionSection.SetActive(hasPaths && unlocked);
 
             if (hasPaths && unlocked)

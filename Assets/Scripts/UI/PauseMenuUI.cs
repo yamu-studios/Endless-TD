@@ -18,9 +18,6 @@ namespace ETD.UI
         [Header("Panels")]
         [SerializeField] private GameObject _pausePanel;
         [SerializeField] private GameObject _settingsSubPanel;
-        [Tooltip("In-run wiki. Build questions come up mid-run, so the same reference " +
-                 "material the Hub shows is reachable from here without abandoning the run.")]
-        [SerializeField] private GameObject _wikiSubPanel;
 
         [Header("Buttons")]
         [SerializeField] private Button _resumeButton;
@@ -28,7 +25,6 @@ namespace ETD.UI
         [SerializeField] private Button _settingsButton;
         [SerializeField] private Button _exitToHubButton;
         [SerializeField] private Button _settingsBackButton;
-        [SerializeField] private Button _wikiButton;
 
         [Header("Settings (inline)")]
         [SerializeField] private Slider _masterVolumeSlider;
@@ -52,9 +48,6 @@ namespace ETD.UI
             if (_settingsSubPanel != null)
                 _settingsSubPanel.SetActive(false);
 
-            if (_wikiSubPanel != null)
-                _wikiSubPanel.SetActive(false);
-
             EventBus.Subscribe<GamePausedEvent>(OnGamePaused);
             EventBus.Subscribe<SettingToggleEvent>(OnSettingToggleEvent);
 
@@ -63,7 +56,6 @@ namespace ETD.UI
             _settingsButton?.onClick.AddListener(OnSettingsClicked);
             _settingsBackButton?.onClick.AddListener(OnSettingsBackClicked);
             _exitToHubButton?.onClick.AddListener(OnExitClicked);
-            _wikiButton?.onClick.AddListener(OnWikiClicked);
 
             BindVolumeSliders();
         }
@@ -93,25 +85,7 @@ namespace ETD.UI
         {
             KeybindingSettingsUI.ForceCancelAllActiveRebinds();
             EventBus.Publish(new SettingToggleEvent { IsActive = false });
-            SetWikiOpen(false);
         }
-
-        private void OnWikiClicked()
-        {
-            KeybindingSettingsUI.ForceCancelAllActiveRebinds();
-            EventBus.Publish(new SettingToggleEvent { IsActive = false });
-            SetWikiOpen(true);
-        }
-
-        // WikiWindowUI publishes WikiToggleEvent from its own OnEnable/OnDisable,
-        // so this only has to flip the panel.
-        private void SetWikiOpen(bool open)
-        {
-            if (_wikiSubPanel != null)
-                _wikiSubPanel.SetActive(open);
-        }
-
-        public bool IsWikiOpen => _wikiSubPanel != null && _wikiSubPanel.activeSelf;
 
         private void BindVolumeSliders()
         {

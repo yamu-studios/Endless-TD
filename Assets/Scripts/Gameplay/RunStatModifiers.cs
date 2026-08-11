@@ -15,7 +15,7 @@ namespace ETD.Gameplay
         [Header("Entropy Engine (non-lethal current-HP decay)")]
         [Tooltip("Enemies can never be decayed below this fraction of their max HP. " +
                  "Entropy Engine is intentionally non-lethal — turrets must finish enemies off.")]
-        [SerializeField] private float _entropyMinHpFraction = 0.005f;
+        [SerializeField] private float _entropyMinHpFraction = ETD.Data.BalanceConstants.EntropyMinHpFraction;
 
         private RunManager _runManager;
         private GameDatabase _database;
@@ -119,6 +119,9 @@ namespace ETD.Gameplay
             // Frost Covenant downside: -10% attack speed for +damage vs slowed/frozen.
             if (GetTraitBonus(TraitEffectType.FrostCovenant) > 0f) mult -= 0.10f;
 
+            // Precision Covenant downside: heavy shots fire slower.
+            if (GetTraitBonus(TraitEffectType.PrecisionCovenant) > 0f) mult -= 0.20f;
+
             float perWaveAttackSpeed = data.GetSpecBonus(SpecCardEffectType.AttackSpeedPerWave)
                                      + GetTraitBonus(TraitEffectType.AllStatsPerWave);
             if (perWaveAttackSpeed > 0f)
@@ -197,6 +200,11 @@ namespace ETD.Gameplay
             float bonus = _runManager.RunData.GetSpecBonus(SpecCardEffectType.BurnDamage);
             bonus += _runManager.RunData.GetSpecBonus(SpecCardEffectType.BurnDamageStrong);
             bonus += GetTraitBonus(TraitEffectType.FlameCovenant); // covenant upside
+
+            // Plague Covenant downside: rot displaces fire — burn output is halved.
+            if (GetTraitBonus(TraitEffectType.PlagueCovenant) > 0f)
+                return Mathf.Max(0f, (1f + bonus) * 0.5f);
+
             return 1f + bonus;
         }
 
@@ -217,8 +225,14 @@ namespace ETD.Gameplay
 
         public float GetChainDamageMultiplier()
         {
-            return 1f + _runManager.RunData.GetSpecBonus(SpecCardEffectType.ChainDamage)
-                      + GetTraitBonus(TraitEffectType.StormCovenant); // covenant upside
+            float mult = 1f + _runManager.RunData.GetSpecBonus(SpecCardEffectType.ChainDamage)
+                            + GetTraitBonus(TraitEffectType.StormCovenant); // covenant upside
+
+            // Precision Covenant downside: single-target focus halves chain output.
+            if (GetTraitBonus(TraitEffectType.PrecisionCovenant) > 0f)
+                mult *= 0.5f;
+
+            return Mathf.Max(0f, mult);
         }
 
         public float GetChainRangeMultiplier()
@@ -236,6 +250,12 @@ namespace ETD.Gameplay
             if (chance > 1f) chance *= 0.01f; // data safety: 15 means 15%
             chance += _runManager.RunData.GetSpecBonus(SpecCardEffectType.CritChance);
             chance += _runManager.RunData.GetSpecBonus(SpecCardEffectType.CritChanceStrong);
+
+            // Void Covenant downside: the run gives up critical hits entirely in
+            // exchange for armor corrosion. Checked last so it overrides every source.
+            if (GetTraitBonus(TraitEffectType.VoidCovenant) > 0f)
+                return 0f;
+
             return Mathf.Clamp01(chance);
         }
 
@@ -244,7 +264,14 @@ namespace ETD.Gameplay
             // Base critical hits deal 200% damage.
             // Turret-specific evolution bonuses, such as Sniper's CritDamageBonus,
             // are applied inside TurretController because they depend on the attacking turret.
-            return 2f;
+            float mult = 2f;
+
+            // Precision Covenant upside: +50% crit damage, pairing with its Expose
+            // amplification into a single-target burst identity.
+            if (GetTraitBonus(TraitEffectType.PrecisionCovenant) > 0f)
+                mult += 0.5f;
+
+            return mult;
         }
 
         // =================================================================
@@ -376,16 +403,150 @@ namespace ETD.Gameplay
         // resistance respectively, before the remaining resistance is applied.
         // Clamped to 0.9 so mitigation can never be fully negated to guaranteed
         // pierce-through (mirrors the 0.9 clamp on Armor/affinity themselves).
+        // Void Covenant upside: every turret, not just Void, ignores this many
+        // percentage points of Armor on top of any ArmorPierce cards.
+        private const float VoidCovenantArmorPierce = 0.15f;
+
         public float GetArmorPierce()
         {
-            return Mathf.Clamp(
-                _runManager.RunData.GetSpecBonus(SpecCardEffectType.ArmorPierce), 0f, 0.9f);
+            float pierce = _runManager.RunData.GetSpecBonus(SpecCardEffectType.ArmorPierce);
+            if (GetTraitBonus(TraitEffectType.VoidCovenant) > 0f)
+                pierce += VoidCovenantArmorPierce;
+            return Mathf.Clamp(pierce, 0f, 0.9f);
         }
 
         public float GetAffinityPierce()
         {
             return Mathf.Clamp(
                 _runManager.RunData.GetSpecBonus(SpecCardEffectType.AffinityPierce), 0f, 0.9f);
+        }
+
+        // =================================================================
+        // PER-TURRET-TYPE CONTENT (v1.0 Phase 5)
+        // Signature cards (SpecCardEffectType.TurretTypeSignature) and Mastery traits
+        // (TraitEffectType.TurretTypeMastery) both carry a TargetTurretType, so both
+        // are looked up by type rather than summed globally.
+        // =================================================================
+
+        /// <summary>Multiplier on a turret type's signature mechanic — the status it
+        /// alone applies (ArmorBreak/Slow/Burn/Weaken/Expose/Poison) or its equivalent
+        /// identity (Lightning chain damage, Laser ramp, Support aura, Radar reveal).
+        /// Includes the matching Keystone Covenant's upside.</summary>
+        public float GetTurretTypeSignatureMultiplier(int turretType)
+        {
+            var type = (TurretType)turretType;
+            float bonus = _runManager.RunData.GetSpecTurretBonus(
+                SpecCardEffectType.TurretTypeSignature, type);
+
+            GetMasteryAllocation(type, out _, out _, out _, out float signatureShare);
+            bonus += signatureShare
+                * GetTurretTypeTraitBonus(TraitEffectType.TurretTypeMastery, type);
+
+            // Covenant upsides act on their own turret type's signature.
+            switch (type)
+            {
+                case TurretType.Void:
+                    bonus += GetTraitBonus(TraitEffectType.VoidCovenant);
+                    break;
+                case TurretType.Toxin:
+                    bonus += GetTraitBonus(TraitEffectType.PlagueCovenant);
+                    break;
+                case TurretType.Railgun:
+                    bonus += GetTraitBonus(TraitEffectType.PrecisionCovenant);
+                    break;
+            }
+
+            return 1f + bonus;
+        }
+
+        // ---- Mastery stat allocation -------------------------------------------
+        // A mastery trait is a fixed budget spent across three stats, but not every
+        // turret type can use all three:
+        //   * Support and Radar return out of ManagedUpdate before UpdateCombat, so
+        //     they never attack — Damage and AttackSpeed are inert data on them.
+        //   * Laser's DPS is Damage * conditional * stack * crit; AttackSpeed appears
+        //     nowhere in it, and IsLaserLike turrets tick on a fixed interval, so
+        //     attack speed is inert for them too.
+        // The budget is therefore redirected to stats each type actually reads,
+        // rather than being silently wasted. GetMasteryAllocation is the single
+        // source of truth, shared with BalanceDescriptionFormatter's effect line so
+        // the displayed numbers can never drift from the applied ones.
+
+        /// <summary>False for turret types that never enter UpdateCombat.</summary>
+        public static bool TurretTypeAttacks(TurretType type)
+            => type != TurretType.Support && type != TurretType.Radar;
+
+        /// <summary>False for types whose damage output does not read AttackSpeed.</summary>
+        public static bool TurretTypeUsesAttackSpeed(TurretType type)
+            => TurretTypeAttacks(type) && type != TurretType.Laser;
+
+        /// <summary>Splits a mastery value into the four stats it can grant. Fractions
+        /// are of the trait's effect value; 0 means that stat is not granted.</summary>
+        public static void GetMasteryAllocation(TurretType type,
+            out float damage, out float attackSpeed, out float range, out float signature)
+        {
+            damage = TurretTypeAttacks(type) ? 1f : 0f;
+            attackSpeed = TurretTypeUsesAttackSpeed(type) ? 0.5f : 0f;
+
+            // Laser and Support get the freed attack-speed share as range: Laser's
+            // reach is a real lever, and Support's Range IS its aura radius.
+            range = (type == TurretType.Laser || type == TurretType.Support) ? 0.5f : 0f;
+
+            // Radar's reveal range is its only usable stat (its Range is unread while
+            // RevealRange is set), so its whole budget lands on the signature — which
+            // scales reveal reach, and through it the Path A mark and Path B aura radius.
+            signature = type == TurretType.Radar ? 2f : 1f;
+        }
+
+        public float GetTurretTypeDamageMultiplier(int turretType)
+        {
+            var type = (TurretType)turretType;
+            GetMasteryAllocation(type, out float share, out _, out _, out _);
+            if (share <= 0f) return 1f;
+            return 1f + share * GetTurretTypeTraitBonus(TraitEffectType.TurretTypeMastery, type);
+        }
+
+        public float GetTurretTypeAttackSpeedMultiplier(int turretType)
+        {
+            var type = (TurretType)turretType;
+            GetMasteryAllocation(type, out _, out float share, out _, out _);
+            if (share <= 0f) return 1f;
+            return 1f + share * GetTurretTypeTraitBonus(TraitEffectType.TurretTypeMastery, type);
+        }
+
+        /// <summary>Range share of a mastery — Laser reach, Support aura radius.</summary>
+        public float GetTurretTypeRangeMultiplier(int turretType)
+        {
+            var type = (TurretType)turretType;
+            GetMasteryAllocation(type, out _, out _, out float share, out _);
+            if (share <= 0f) return 1f;
+            return 1f + share * GetTurretTypeTraitBonus(TraitEffectType.TurretTypeMastery, type);
+        }
+
+        // Plague Covenant: Toxin's pure-damage identity leaks to every other turret
+        // type at this fraction of its rate, which is what makes the covenant a build
+        // rather than a single-turret buff.
+        private const float PlagueLeakFraction = 0.2f;
+
+        public float GetPlagueLeakFraction()
+        {
+            return GetTraitBonus(TraitEffectType.PlagueCovenant) > 0f ? PlagueLeakFraction : 0f;
+        }
+
+        /// <summary>Sums effective values of active traits with the given effect type
+        /// AND matching TargetTurretType. Mirrors GetTraitBonus but type-filtered.</summary>
+        private float GetTurretTypeTraitBonus(TraitEffectType type, TurretType turretType)
+        {
+            float total = 0f;
+            var data = _runManager.RunData;
+            foreach (var traitId in data.ActiveTraitIds)
+            {
+                var trait = _database.GetTrait(traitId);
+                if (trait != null && trait.EffectType == type
+                    && trait.TargetsTurretType && trait.TargetTurretType == turretType)
+                    total += GetTraitEffectiveValue(traitId, trait);
+            }
+            return total;
         }
 
         private float GetWaveScalingMultiplier(float perWaveBonus, int wave)

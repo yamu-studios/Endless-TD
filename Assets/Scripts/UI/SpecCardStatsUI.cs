@@ -71,6 +71,19 @@ namespace ETD.UI
 
             EnsureDraggable();
             if (_panel != null) _panel.SetActive(false);
+
+            EventBus.Subscribe<CloseSpecCardStatsRequestEvent>(OnCloseRequested);
+        }
+
+        private void OnDestroy()
+        {
+            EventBus.Unsubscribe<CloseSpecCardStatsRequestEvent>(OnCloseRequested);
+        }
+
+        /// <summary>Escape asked for this panel to close (see GameInputHandler).</summary>
+        private void OnCloseRequested(CloseSpecCardStatsRequestEvent evt)
+        {
+            if (_isOpen) Close();
         }
 
         private void Update()
@@ -103,11 +116,18 @@ namespace ETD.UI
         // OPEN / CLOSE / TOGGLE
         // =================================================================
 
+        /// <summary>True while the stats panel is showing. Read by the Escape handler,
+        /// which closes open panels before it falls through to opening the menu.</summary>
+        public bool IsOpen => _isOpen;
+
         public void Toggle() { if (_isOpen) Close(); else Open(); }
 
         public void Open()
         {
             _isOpen = true;
+            // Tell the Escape handler a panel is up (it cannot reference this class —
+            // ETD.UI already references ETD.Inputs).
+            EventBus.Publish(new SpecCardStatsToggledEvent { IsActive = true });
             _nextLiveRefreshTime = Time.unscaledTime + _liveRefreshInterval;
             if (_panel != null) _panel.SetActive(true);
             Refresh();
@@ -116,6 +136,7 @@ namespace ETD.UI
         public void Close()
         {
             _isOpen = false;
+            EventBus.Publish(new SpecCardStatsToggledEvent { IsActive = false });
             if (_panel != null) _panel.SetActive(false);
         }
 

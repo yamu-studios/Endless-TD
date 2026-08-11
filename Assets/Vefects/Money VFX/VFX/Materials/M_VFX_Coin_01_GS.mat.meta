@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 64aa26a1ea838b848a1ff75e4c10fc43
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 375124
+  packageName: Money VFX - URP
+  packageVersion: 1.0.1
+  assetPath: Assets/Vefects/Money VFX/VFX/Materials/M_VFX_Coin_01_GS.mat
+  uploadId: 908156

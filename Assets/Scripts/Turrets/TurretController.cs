@@ -77,6 +77,11 @@ namespace ETD.Turrets
                  "holding the beam on one tank. Set 0 to disable.")]
         [SerializeField, Range(0f, 0.2f)] private float _laserExecuteMissingHPPercent = 0.03f;
 
+        [Tooltip("Reference Toxin pure-damage rate used when the Plague Covenant leaks " +
+                 "Toxin's identity onto non-Toxin turrets, which have no ToxinPurePercent " +
+                 "of their own. Matches TurretData.ToxinPurePercent's default.")]
+        [SerializeField, Range(0f, 0.2f)] private float _plagueBaseToxinPercent = 0.02f;
+
         [Header("Identity Scaling")]
         [Tooltip("Turret IDENTITY effects grow with upgrade level: Frost slow strength/duration " +
                  "and the Inferno flat-burn floor gain this fraction per level (0.01 = +1%/level). " +
@@ -221,7 +226,6 @@ namespace ETD.Turrets
         public bool IsEvolveChoicePending =>
             Data != null
             && !IsEvolved
-            && Data.Type != TurretType.Radar
             && Level >= Data.EvolveLevel
             && (Data.PathA != null || Data.PathB != null);
 
@@ -231,8 +235,8 @@ namespace ETD.Turrets
         /// <summary>Maximum laser ramp multiplier for this turret's current form. UI-facing.</summary>
         public float LaserRampCapMultiplier =>
             _cachedIsStackingLaser && Data != null && Data.PathB != null
-                ? 1f + Data.PathB.StackingCap
-                : 1f + Mathf.Max(0f, _innateLaserRampCap);
+                ? 1f + Data.PathB.StackingCap * _laserSignatureMultiplier
+                : 1f + Mathf.Max(0f, _innateLaserRampCap) * _laserSignatureMultiplier;
 
         /// <summary>True for any laser form that ramps (innate or Stacker evolution). UI-facing.</summary>
         public bool HasLaserRamp => Data != null && Data.IsContinuousBeam &&
@@ -262,6 +266,12 @@ namespace ETD.Turrets
         private float _supportSpeedBonus;
         private float _supportAuraExpireTime;
 
+        // Radar Path B "Spotter Uplink" aura, received by this turret. Resolved through
+        // the same SupportAuraSystem pass as the support auras above (strongest wins).
+        private float _spotterRangeBonus;
+        private float _spotterCritDamageBonus;
+        private bool _spotterStealthVision;
+
         // Enemy aura penalty. Positive value like 0.18 = -18% damage.
         private float _enemyDamageDebuff;
         private float _enemyDebuffExpireTime;
@@ -279,6 +289,20 @@ namespace ETD.Turrets
 
         // Laser stacking / crit window
         private float _laserStackMultiplier = 1f;
+
+        // Laser's signature is its ramp, so its signature card/trait raises the ramp
+        // ceiling. Cached in RecalculateStats because the ramp updates every damage
+        // tick while the modifier only changes on card/trait acquisition.
+        private float _laserSignatureMultiplier = 1f;
+
+        // This turret type's signature multiplier. Cached rather than queried per
+        // attack: resolving it walks the active trait list, and it only changes when
+        // a card/trait is acquired — which already forces a RecalculateStats.
+        private float _signatureMultiplier = 1f;
+
+        // Plague Covenant leak rate for this turret (0 for Toxin and when the covenant
+        // is inactive). Cached alongside _signatureMultiplier for the same reason.
+        private float _plagueLeakFraction;
         private float _pendingExecuteHpDamage;
         private EnemyController _lastLaserTarget;
         private float _laserCritWindowTimer;
@@ -371,6 +395,13 @@ namespace ETD.Turrets
         // contributes a small, explicitly-summed set of bonuses (currently
         // HitCurrentHPPercent) instead of replacing the Path's own cached fields.
         private TurretEvolutionData _cachedTier2Evolution;
+
+        // Radar Path A: the reveal sweep also marks non-stealth enemies.
+        private bool _cachedRadarMark;
+
+        // Accumulates the Tier 2 percent-HP pulse between radar ticks, so the pulse is
+        // rate-independent of _radarUpdateInterval.
+        private float _radarPulseAccumulator;
         private bool _hasPostAttackEvolutionEffects;
         private bool _cachedDoubleProjectile;
         private float _cachedDoubleProjectileDamageMultiplier = 1f;
@@ -563,6 +594,9 @@ namespace ETD.Turrets
 
             _cachedTier2Evolution = IsEvolvedTier2 && Data != null ? Data.Tier2 : null;
 
+            _cachedRadarMark = Data != null && Data.Type == TurretType.Radar &&
+                               _cachedEvolution != null && _cachedEvolution.MarkEnemies;
+
             _areaSlowAnchorTarget = null;
             _areaDamageAnchorTarget = null;
             _evolvedAreaSlowTargets.Clear();
@@ -730,9 +764,29 @@ namespace ETD.Turrets
                 baseDmg *= Mathf.Max(0f, _statModifiers.GetGlobalDamageMultiplier());
                 baseSpd *= Mathf.Max(0f, _statModifiers.GetGlobalAttackSpeedMultiplier());
                 baseRng *= Mathf.Max(0f, _statModifiers.GetGlobalRangeMultiplier());
+
+                // Mastery traits, for one turret type only. Which of these actually
+                // receive a share depends on the type: Support/Radar never attack and
+                // Laser ignores AttackSpeed, so RunStatModifiers.GetMasteryAllocation
+                // redirects their budget (returning 1f here for the dead stats).
+                baseDmg *= Mathf.Max(0f, _statModifiers.GetTurretTypeDamageMultiplier((int)Data.Type));
+                baseSpd *= Mathf.Max(0f, _statModifiers.GetTurretTypeAttackSpeedMultiplier((int)Data.Type));
+                baseRng *= Mathf.Max(0f, _statModifiers.GetTurretTypeRangeMultiplier((int)Data.Type));
+
                 if (Data.Type == TurretType.Support)
                     baseRng *= Mathf.Max(0f, _statModifiers.GetSupportRadiusMultiplier());
             }
+
+            _signatureMultiplier = _statModifiers != null
+                ? Mathf.Max(0f, _statModifiers.GetTurretTypeSignatureMultiplier((int)Data.Type))
+                : 1f;
+
+            _laserSignatureMultiplier = Data.Type == TurretType.Laser ? _signatureMultiplier : 1f;
+
+            // Only non-Toxin turrets can receive the leak; Toxin applies its own rate.
+            _plagueLeakFraction = (_statModifiers != null && Data.Type != TurretType.Toxin)
+                ? Mathf.Max(0f, _statModifiers.GetPlagueLeakFraction())
+                : 0f;
 
             _cachedLaserRefractionPercent = _statModifiers != null
                 ? Mathf.Clamp01(_statModifiers.GetLaserRefractionPercent())
@@ -742,6 +796,7 @@ namespace ETD.Turrets
             // External buffs (support turrets)
             float supportDamageMultiplier = 1f + Mathf.Max(0f, _supportDamageBonus);
             float supportSpeedMultiplier = 1f + Mathf.Max(0f, _supportSpeedBonus);
+            baseRng *= 1f + Mathf.Max(0f, _spotterRangeBonus);
             float enemyDebuffMultiplier = 1f - Mathf.Clamp01(_enemyDamageDebuff);
 
             Damage = baseDmg * supportDamageMultiplier * enemyDebuffMultiplier;
@@ -815,6 +870,9 @@ namespace ETD.Turrets
 
             if (_cachedEvolution != null && _cachedEvolution.CritDamageBonus > 0f)
                 multiplier += _cachedEvolution.CritDamageBonus;
+
+            // Radar Path B Tier 2 shares crit damage with every turret in its radius.
+            multiplier += Mathf.Max(0f, _spotterCritDamageBonus);
 
             return multiplier;
         }
@@ -1046,7 +1104,7 @@ namespace ETD.Turrets
             // which never reach FindTarget. Fall back to First just in case.
             TargetingMode mode = _targetingMode == TargetingMode.None ? TargetingMode.First : _targetingMode;
             EnemyController target = _enemyManager.GetBestEnemyInRange(
-                origin, Range, Data.CanTargetStealth, mode);
+                origin, Range, CanSeeStealth, mode);
             Profiler.EndSample();
             return target;
         }
@@ -1075,7 +1133,7 @@ namespace ETD.Turrets
         private bool IsTargetStillValid(EnemyController target)
         {
             if (target == null || target.IsDead || !target.gameObject.activeInHierarchy) return false;
-            if (target.IsStealth && !target.IsRevealed && !Data.CanTargetStealth) return false;
+            if (target.IsStealth && !target.IsRevealed && !CanSeeStealth) return false;
 
             Vector3 origin = _cachedTransform != null ? _cachedTransform.position : transform.position;
             Vector3 targetPos = target.transform.position;
@@ -1148,6 +1206,14 @@ namespace ETD.Turrets
             // Frost/Inferno turret improves what makes it special, not just raw stats.
             float identityMult = TurretStatMath.IdentityMultiplier(
                 Level - 1, _identityScalingPerLevel, _identityScalingCap);
+
+            // v1.0 Phase 5: signature cards/traits (and the matching Covenant) scale the
+            // same identity the level curve does, so folding them into identityMult
+            // covers every status-based signature below — Basic ArmorBreak, Frost Slow,
+            // Inferno Burn, Void Weaken, Railgun Expose and Toxin's pure damage — in one
+            // place. Lightning/Laser/Support/Radar apply no status here, so they use
+            // _signatureMultiplier at their own identity site instead.
+            identityMult *= _signatureMultiplier;
 
             switch (Data.Type)
             {
@@ -1246,10 +1312,17 @@ namespace ETD.Turrets
             // Toxin's signature identity: bonus PURE damage per hit that bypasses
             // Armor/affinity entirely (unlike the HitCurrentHPPercent bonus above,
             // which is added to finalDamage and still goes through mitigation).
-            if (Data.Type == TurretType.Toxin && !target.IsDead)
+            // Plague Covenant lets non-Toxin turrets apply a fraction of this identity
+            // too, using Toxin's base rate since they have no ToxinPurePercent of their own.
+            float plagueLeak = _plagueLeakFraction;
+
+            if ((Data.Type == TurretType.Toxin || plagueLeak > 0f) && !target.IsDead)
             {
-                float toxinPercent = Data.ToxinPurePercent
-                    + (_cachedTier2Evolution != null ? _cachedTier2Evolution.ToxinPurePercentBonus : 0f);
+                float toxinPercent = Data.Type == TurretType.Toxin
+                    ? Data.ToxinPurePercent
+                        + (_cachedTier2Evolution != null ? _cachedTier2Evolution.ToxinPurePercentBonus : 0f)
+                    : _plagueBaseToxinPercent * plagueLeak;
+
                 if (toxinPercent > 0f)
                 {
                     float pureDamage = target.CurrentHealth * toxinPercent * identityMult;
@@ -1482,7 +1555,7 @@ namespace ETD.Turrets
                 // target change, so it rewards tanks/bosses without buffing swarm clear.
                 _laserStackMultiplier = Mathf.Min(
                     _laserStackMultiplier * (1f + _innateLaserRampPerSecond * damageDt),
-                    1f + _innateLaserRampCap);
+                    1f + _innateLaserRampCap * _laserSignatureMultiplier);
                 _beamRenderer?.SetStackMultiplier(_laserStackMultiplier);
             }
 
@@ -1492,7 +1565,7 @@ namespace ETD.Turrets
                 float stackingInterval = Mathf.Max(0.001f, Data.PathB.StackingInterval);
                 // Compounding like the innate ramp, at the evolution's stronger rate.
                 float rampRate = Data.PathB.StackingDPSPercent / stackingInterval;
-                float stackingCap = 1f + Data.PathB.StackingCap;
+                float stackingCap = 1f + Data.PathB.StackingCap * _laserSignatureMultiplier;
                 _laserStackMultiplier = Mathf.Min(
                     _laserStackMultiplier * (1f + rampRate * damageDt),
                     stackingCap);
@@ -1767,7 +1840,8 @@ namespace ETD.Turrets
 
             float shockChance = _statModifiers.GetShockChance();
             if (shockChance > 0f && !target.IsDead && Random.value < shockChance)
-                target.ApplyStatus(StatusEffectType.Shock, 1f, 0.25f, (int)Data.Type, InstanceId);
+                target.ApplyStatus(StatusEffectType.Shock, 1f, BalanceConstants.ShockDuration,
+                    (int)Data.Type, InstanceId);
 
             // Ember Stacker (Inferno Path B): every hit applies one EXTRA burn stack
             // and may push the enemy past the default burn-stack cap up to the
@@ -1911,7 +1985,11 @@ namespace ETD.Turrets
                 if (_statModifiers != null)
                 {
                     chainRange *= _statModifiers.GetChainRangeMultiplier();
-                    chainDamageMultiplier = _statModifiers.GetChainDamageMultiplier();
+                    // Lightning's signature is the chain itself, so its signature
+                    // card/trait scales chain damage (the identityMult fold in
+                    // ApplyAttack does not reach here — Lightning applies no status).
+                    chainDamageMultiplier = _statModifiers.GetChainDamageMultiplier()
+                        * _signatureMultiplier;
                     bounceBackChance = _statModifiers.GetChainBounceBackChance();
                 }
 
@@ -2188,6 +2266,102 @@ namespace ETD.Turrets
         /// </summary>
         internal bool IsSupportTurret => Data != null && Data.Type == TurretType.Support;
 
+        /// <summary>
+        /// Radar Path B "Spotter Uplink". Like a support turret it contributes a static
+        /// aura to nearby towers, so it is reconciled by the same
+        /// <see cref="SupportAuraSystem"/> pass rather than scanning on its own.
+        /// </summary>
+        internal bool IsSpotterTurret =>
+            Data != null && Data.Type == TurretType.Radar && IsEvolved &&
+            _cachedEvolution != null && _cachedEvolution.ShareStealthVision;
+
+        /// <summary>
+        /// True for any turret whose placement/level/evolution changes the static aura
+        /// topology and therefore needs a SupportAuraSystem rebuild.
+        /// </summary>
+        internal bool ContributesStaticAura => IsSupportTurret || IsSpotterTurret;
+
+        /// <summary>
+        /// Spotter aura profile, mirroring <see cref="TryGetSupportAuraProfile"/>. Radius
+        /// is the reveal radius (not Range) — reveal is the stat a radar's levels buy, so
+        /// the aura has to grow with the same thing the player is paying for.
+        /// </summary>
+        internal bool TryGetSpotterAuraProfile(
+            out float radius,
+            out float rangeBonus,
+            out float critDamageBonus)
+        {
+            radius = 0f;
+            rangeBonus = 0f;
+            critDamageBonus = 0f;
+
+            if (!IsSpotterTurret)
+                return false;
+
+            radius = GetRadarRevealRange();
+            if (radius <= 0f)
+                return false;
+
+            int levelIndex = Mathf.Max(0, Level - 1);
+            rangeBonus = Mathf.Max(0f, _cachedEvolution.AllyRangeAura)
+                         + Mathf.Max(0f, _cachedEvolution.AllyRangeAuraPerLevel) * levelIndex;
+
+            if (_cachedTier2Evolution != null)
+            {
+                rangeBonus += Mathf.Max(0f, _cachedTier2Evolution.AllyRangeAura);
+                critDamageBonus = Mathf.Max(0f, _cachedTier2Evolution.AllyCritDamageAura);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Effective reveal radius including per-level growth and the signature multiplier.
+        /// Shared by the reveal sweep and the Path B aura so they can never disagree.
+        /// </summary>
+        internal float GetRadarRevealRange()
+        {
+            if (Data == null)
+                return 0f;
+
+            float revealRange = (Data.RevealRange > 0f ? Data.RevealRange : Range)
+                + Mathf.Max(0f, Data.RevealRangePerLevel) * (Level - 1);
+
+            return revealRange * _signatureMultiplier;
+        }
+
+        /// <summary>
+        /// Applies the resolved strongest spotter aura. Separate from
+        /// <see cref="SetResolvedSupportAura"/> so support and spotter auras can coexist
+        /// on the same turret without either overwriting the other's fields.
+        /// </summary>
+        internal void SetResolvedSpotterAura(float rangeBonus, float critDamageBonus, bool stealthVision)
+        {
+            rangeBonus = Mathf.Max(0f, rangeBonus);
+            critDamageBonus = Mathf.Max(0f, critDamageBonus);
+
+            if (Mathf.Approximately(_spotterRangeBonus, rangeBonus) &&
+                Mathf.Approximately(_spotterCritDamageBonus, critDamageBonus) &&
+                _spotterStealthVision == stealthVision)
+            {
+                return;
+            }
+
+            _spotterRangeBonus = rangeBonus;
+            _spotterCritDamageBonus = critDamageBonus;
+            _spotterStealthVision = stealthVision;
+
+            // Stealth vision changes which targets are legal, so drop the current one.
+            _currentTarget = null;
+            RecalculateStats();
+        }
+
+        /// <summary>
+        /// Whether this turret may acquire un-revealed stealth enemies: either innately,
+        /// or because a Path B radar is sharing its vision.
+        /// </summary>
+        private bool CanSeeStealth => Data != null && (Data.CanTargetStealth || _spotterStealthVision);
+
         internal void EnsureSupportAuraVisual()
         {
             if (_visualConfig != null && _visualConfig.AuraVFXObject != null &&
@@ -2219,8 +2393,10 @@ namespace ETD.Turrets
             if (radius <= 0f)
                 return false;
 
+            // Support's signature is the aura, so its signature card/trait scales aura
+            // strength here rather than through the status fold in ApplyAttack.
             float auraMultiplier = _statModifiers != null
-                ? Mathf.Max(0f, _statModifiers.GetSupportAuraMultiplier())
+                ? Mathf.Max(0f, _statModifiers.GetSupportAuraMultiplier()) * _signatureMultiplier
                 : 1f;
 
             int levelIndex = Mathf.Max(0, Level - 1);
@@ -2296,10 +2472,15 @@ namespace ETD.Turrets
             if (_visualConfig != null && _visualConfig.RadarVFXObject != null && !_visualConfig.RadarVFXObject.activeSelf)
                 _visualConfig.RadarVFXObject.SetActive(true);
 
+            _radarPulseAccumulator += dt;
+
             _radarTickTimer -= dt;
             if (_radarTickTimer > 0f)
                 return;
             _radarTickTimer = Mathf.Max(0.05f, _radarUpdateInterval);
+
+            float sinceLastTick = _radarPulseAccumulator;
+            _radarPulseAccumulator = 0f;
 
             if (_enemyManager == null || Data == null)
             {
@@ -2309,8 +2490,9 @@ namespace ETD.Turrets
 
             // Reveal range grows with upgrades — the only stat a radar level buys
             // (Damage/AttackSpeed are meaningless for a turret that never attacks).
-            float revealRange = (Data.RevealRange > 0 ? Data.RevealRange : Range)
-                + Mathf.Max(0f, Data.RevealRangePerLevel) * (Level - 1);
+            // Radar's signature is the reveal itself — it never attacks, so its
+            // signature card/trait scales reveal reach rather than any status.
+            float revealRange = GetRadarRevealRange();
 
             Profiler.BeginSample("Turret.Radar.GetStealthEnemiesInRange");
             _enemyManager.GetStealthEnemiesInRange(transform.position, revealRange, _enemiesInRange);
@@ -2342,6 +2524,69 @@ namespace ETD.Turrets
                     _radarRevealedEnemies[i] = _radarRevealedEnemies[last];
                     _radarRevealedEnemies.RemoveAt(last);
                 }
+            }
+            Profiler.EndSample();
+
+            // Path A "Fire Control Array": the sweep also tags non-stealth enemies. Safe
+            // to reuse _enemiesInRange here — the reveal pass above is fully done with it.
+            if (_cachedRadarMark)
+                ApplyRadarMarks(revealRange, sinceLastTick);
+        }
+
+        /// <summary>
+        /// Radar Path A mark pass, plus the Tier 2 percent-HP pulse. The mark duration is
+        /// two tick intervals (so a mark never flickers between sweeps) plus the Tier 2
+        /// linger, which is what lets a marked enemy stay marked as it walks out of the
+        /// bubble and into the kill zone.
+        /// </summary>
+        private void ApplyRadarMarks(float revealRange, float sinceLastTick)
+        {
+            TurretEvolutionData evo = _cachedEvolution;
+            if (evo == null)
+                return;
+
+            int levelIndex = Mathf.Max(0, Level - 1);
+            float amp = (Mathf.Max(0f, evo.MarkDamageAmp)
+                         + Mathf.Max(0f, evo.MarkAmpPerLevel) * levelIndex)
+                        * _signatureMultiplier;
+
+            float armorShred = _cachedTier2Evolution != null
+                ? Mathf.Clamp01(_cachedTier2Evolution.MarkArmorShredBonus) : 0f;
+            float linger = _cachedTier2Evolution != null
+                ? Mathf.Max(0f, _cachedTier2Evolution.MarkLingerDuration) : 0f;
+            float pulsePercent = _cachedTier2Evolution != null
+                ? Mathf.Max(0f, _cachedTier2Evolution.MarkCurrentHPPercentPerSecond) : 0f;
+
+            float duration = Mathf.Max(0.05f, _radarUpdateInterval) * 2f + linger;
+            float pulseFraction = pulsePercent > 0f
+                ? Mathf.Clamp01(pulsePercent * Mathf.Max(0f, sinceLastTick))
+                : 0f;
+
+            Profiler.BeginSample("Turret.Radar.ApplyMarks");
+            _enemyManager.GetEnemiesInRange(transform.position, revealRange, _enemiesInRange);
+
+            for (int i = 0; i < _enemiesInRange.Count; i++)
+            {
+                EnemyController enemy = _enemiesInRange[i];
+                if (enemy == null || enemy.IsDead)
+                    continue;
+
+                enemy.ApplyRadarMark(amp, armorShred, duration);
+
+                if (pulseFraction <= 0f)
+                    continue;
+
+                float pulseDamage = enemy.CurrentHealth * pulseFraction;
+                if (pulseDamage <= 0f)
+                    continue;
+
+                // Pure damage: this is a sensor pulse, not a shot, so armor/affinity
+                // should not apply. Reported as percent-HP so the Entropy Engine style
+                // tracking advances, matching the chain-lightning percent-HP path.
+                enemy.TakePureDamage(pulseDamage, playHitVFX: false, isCritical: false,
+                    showDamageNumber: false, sourceTurretType: (int)TurretType.Radar,
+                    sourceTurretId: InstanceId);
+                EventBus.Publish(new PercentHPDamageEvent { DamageAmount = pulseDamage });
             }
             Profiler.EndSample();
         }
@@ -2484,11 +2729,18 @@ namespace ETD.Turrets
 
         public void Upgrade()
         {
+            // Tutorial gate: the practice run parks the turret one level below each
+            // evolution threshold so an evolution can never fire before its objective is
+            // on screen — including when the player spams the upgrade key. Wide open
+            // (int.MaxValue) in normal play. See ETD.Core.TutorialGates.
+            if (Level >= TutorialGates.TurretLevelCap)
+                return;
+
             TotalGoldInvested += GetUpgradeCost();
             Level++;
             RecalculateStats();
             ApplyUpgradeVisualScale(true);
-            if (IsSupportTurret)
+            if (ContributesStaticAura)
                 _turretManager?.MarkSupportAurasDirty();
 
             _vfxConfig?.SpawnUpgrade();
@@ -2500,14 +2752,14 @@ namespace ETD.Turrets
                 NewLevel = Level
             });
 
-            if (Level >= Data.EvolveLevel && !IsEvolved && Data.Type != TurretType.Radar)
+            if (Level >= Data.EvolveLevel && !IsEvolved)
             {
                 // Path A/B is still a real player choice, but it no longer pauses
                 // the game — the panel just shows over live gameplay.
                 EventBus.Publish(new ShowEvolveChoiceEvent { TurretId = InstanceId });
             }
             else if (IsEvolved && !IsEvolvedTier2 && Data.Tier2 != null &&
-                Level >= Data.EvolveLevel2 && Data.Type != TurretType.Radar)
+                Level >= Data.EvolveLevel2)
             {
                 // Tier2 has no choice to make (single shared upgrade), so it
                 // evolves immediately with no confirm button and no pause.
@@ -2526,12 +2778,12 @@ namespace ETD.Turrets
             Level++;
             RecalculateStats();
             ApplyUpgradeVisualScale(false);
-            if (IsSupportTurret)
+            if (ContributesStaticAura)
                 _turretManager?.MarkSupportAurasDirty();
 
             
 
-            if (Level >= Data.EvolveLevel && !IsEvolved && Data.Type != TurretType.Radar)
+            if (Level >= Data.EvolveLevel && !IsEvolved)
             {
                 //GameManager.Instance.PushModalState(GameState.EvolveChoice);
                 //EventBus.Publish(new ShowEvolveChoiceEvent { TurretId = InstanceId });
@@ -2551,7 +2803,7 @@ namespace ETD.Turrets
             RecalculateStats();
             ApplyUpgradeVisualScale(false);
             RefreshProjectileCache();
-            if (IsSupportTurret)
+            if (ContributesStaticAura)
                 _turretManager?.MarkSupportAurasDirty();
 
             if (publishEvent)
@@ -2582,7 +2834,7 @@ namespace ETD.Turrets
             RefreshEvolutionAttackCache();
             RecalculateStats();
             RefreshProjectileCache();
-            if (IsSupportTurret)
+            if (ContributesStaticAura)
                 _turretManager?.MarkSupportAurasDirty();
 
             if (publishEvent)
@@ -2808,7 +3060,7 @@ namespace ETD.Turrets
             ApplyUpgradeVisualScale(false);
             _visualConfig = GetComponent<TurretVisualConfig>();
             RefreshProjectileCache();
-            if (IsSupportTurret)
+            if (ContributesStaticAura)
                 _turretManager?.MarkSupportAurasDirty();
         }
 
@@ -2823,7 +3075,7 @@ namespace ETD.Turrets
 
             RecalculateStats();
             ApplyUpgradeVisualScale(false);
-            if (IsSupportTurret)
+            if (ContributesStaticAura)
                 _turretManager?.MarkSupportAurasDirty();
         }
 #endif

@@ -76,6 +76,19 @@ namespace ETD.Core
 
     public struct PercentHPDamageEvent { public float DamageAmount; }
 
+    /// <summary>Raised the FIRST time a radar reveals a given stealth enemy. Latched
+    /// per enemy (EnemyController._hasBeenRadarRevealed) so an enemy walking in and
+    /// out of radar range is counted once, not once per re-entry.</summary>
+    public struct StealthEnemyRevealedEvent { }
+
+    /// <summary>Raised by SpecCardStatsUI whenever it opens or closes, so input handlers
+    /// can know a panel is up without referencing ETD.UI (which already references
+    /// ETD.Inputs — the dependency cannot go both ways).</summary>
+    public struct SpecCardStatsToggledEvent { public bool IsActive; }
+
+    /// <summary>Asks SpecCardStatsUI to close. Mirrors CloseWikiRequestEvent.</summary>
+    public struct CloseSpecCardStatsRequestEvent { }
+
     public struct GameStateChangedEvent
     {
         public int NewState;  // cast to GameState enum

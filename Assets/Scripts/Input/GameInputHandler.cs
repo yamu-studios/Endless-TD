@@ -25,10 +25,19 @@ namespace ETD.Inputs
         private GridSystem _grid;
         private TurretManager _turretManager;
         private bool _isPlacingTurret;
+
+        /// <summary>True while a turret is being placed. Read by the gamepad shortcuts:
+        /// L1 means "keep placing" during placement, so quick-sell must stand down.</summary>
+        public bool IsPlacingTurret => _isPlacingTurret;
         private TurretData _turretToPlace;
         private int _selectedTurretId = -1;
         private bool isSettingsEnabled;
         private bool isWikiOpen;
+
+        // Tracked by event rather than a direct reference: SpecCardStatsUI lives in
+        // ETD.UI, which already references ETD.Inputs, so this assembly cannot
+        // reference it back. Same pattern as isWikiOpen / isSettingsEnabled.
+        private bool isSpecCardStatsOpen;
         private void Start()
         {
             _grid = ServiceLocator.Get<GridSystem>();
@@ -38,6 +47,12 @@ namespace ETD.Inputs
 
             EventBus.Subscribe<SettingToggleEvent>(OnSettingsToggled);
             EventBus.Subscribe<WikiToggleEvent>(OnWikiToggled);
+            EventBus.Subscribe<SpecCardStatsToggledEvent>(OnSpecCardStatsToggled);
+        }
+
+        private void OnSpecCardStatsToggled(SpecCardStatsToggledEvent evt)
+        {
+            isSpecCardStatsOpen = evt.IsActive;
         }
 
         private void Update()
@@ -68,12 +83,21 @@ namespace ETD.Inputs
                     CancelPlacement();
                 else
                 {
-                    // Sub-panels close first so Escape never skips straight to
-                    // unpausing while the player is reading something.
+                    // Escape closes ONE open panel at a time, innermost first, and only
+                    // opens the menu once nothing is left open. Without the stats/turret
+                    // entries below, Escape used to jump straight to the pause menu while
+                    // the player still had a panel up.
                     if (isWikiOpen)
                         EventBus.Publish(new CloseWikiRequestEvent());
                     else if (isSettingsEnabled)
                         EventBus.Publish(new SettingToggleEvent { IsActive = false });
+                    else if (isSpecCardStatsOpen)
+                        EventBus.Publish(new CloseSpecCardStatsRequestEvent());
+                    else if (_selectedTurretId >= 0)
+                    {
+                        _selectedTurretId = -1;
+                        EventBus.Publish(new TurretDeselectedEvent { });
+                    }
                     else
                         GameManager.Instance.TogglePause();
                 }
@@ -262,6 +286,7 @@ namespace ETD.Inputs
         {
             EventBus.Unsubscribe<SettingToggleEvent>(OnSettingsToggled);
             EventBus.Unsubscribe<WikiToggleEvent>(OnWikiToggled);
+            EventBus.Unsubscribe<SpecCardStatsToggledEvent>(OnSpecCardStatsToggled);
         }
     }
 }

@@ -26,8 +26,78 @@ namespace ETD.UI
             if (data == null)
                 return localizedDescription ?? string.Empty;
 
+            // Mastery traits move three stats at once, and the third is whatever that
+            // turret type's signature mechanic is — so the line is built here, where
+            // TargetTurretType is available, rather than in FormatTraitEffect (which
+            // only sees the shared effect enum and could not name the mechanic).
+            if (data.EffectType == TraitEffectType.TurretTypeMastery && data.TargetsTurretType)
+                return AppendEffectLine(localizedDescription, FormatMasteryEffect(data));
+
             string effect = FormatTraitEffect(data.EffectType, GetDisplayEffectValue(data));
+            if (data.TargetsTurretType)
+                effect = $"{TurretTypeLabel(data.TargetTurretType)}: {effect}";
             return AppendEffectLine(localizedDescription, effect);
+        }
+
+        /// <summary>
+        /// Builds a mastery trait's effect line from the SAME allocation the gameplay
+        /// code applies (RunStatModifiers.GetMasteryAllocation), so the line can never
+        /// advertise a stat the turret does not receive. This is why Support and Radar
+        /// masteries show no damage/attack-speed entry — those types never attack —
+        /// and why Laser shows range instead of attack speed.
+        /// </summary>
+        private static string FormatMasteryEffect(TraitData data)
+        {
+            float v = GetDisplayEffectValue(data);
+            var type = data.TargetTurretType;
+            ETD.Gameplay.RunStatModifiers.GetMasteryAllocation(
+                type, out float dmg, out float spd, out float rng, out float sig);
+
+            var parts = new System.Collections.Generic.List<string>(4);
+            if (dmg > 0f)
+                parts.Add($"{FormatPercentSigned(v * dmg)} " +
+                          LocalizationManager.Get("trait_effect_type_bonus_damage", "damage"));
+            if (spd > 0f)
+                parts.Add($"{FormatPercentSigned(v * spd)} " +
+                          LocalizationManager.Get("trait_effect_type_attack_speed", "attack speed"));
+            if (rng > 0f)
+                parts.Add($"{FormatPercentSigned(v * rng)} " +
+                          LocalizationManager.Get("trait_effect_type_bonus_range", "turret range"));
+            if (sig > 0f)
+                parts.Add($"{FormatPercentSigned(v * sig)} {SignatureLabel(type)}");
+
+            return $"{TurretTypeLabel(type)}: {string.Join(", ", parts)}";
+        }
+
+        /// <summary>Localized turret-type name, used to prefix the effect line of
+        /// per-turret-type cards and traits so the number has a subject.</summary>
+        internal static string TurretTypeLabel(TurretType type)
+        {
+            return LocalizationManager.Get(
+                "turret_type_" + type.ToString().ToLowerInvariant(), type.ToString());
+        }
+
+        /// <summary>Localized name of a turret type's signature mechanic — the thing
+        /// signature cards and mastery traits amplify (Void's armor corrosion, Frost's
+        /// slow strength, and so on).</summary>
+        private static string SignatureLabel(TurretType type)
+        {
+            string fallback = type switch
+            {
+                TurretType.Basic => "armor shred",
+                TurretType.Frost => "slow strength",
+                TurretType.Laser => "ramp ceiling",
+                TurretType.Inferno => "burn damage",
+                TurretType.Lightning => "chain damage",
+                TurretType.Support => "aura power",
+                TurretType.Radar => "reveal range",
+                TurretType.Void => "armor corrosion",
+                TurretType.Toxin => "pure damage",
+                TurretType.Railgun => "expose power",
+                _ => "signature effect"
+            };
+            return LocalizationManager.Get(
+                "turret_signature_" + type.ToString().ToLowerInvariant(), fallback);
         }
 
         public static string AppendSpecCardNumbers(SpecCardData data, string localizedDescription)
@@ -35,7 +105,18 @@ namespace ETD.UI
             if (data == null)
                 return localizedDescription ?? string.Empty;
 
+            // Signature cards name the mechanic they amplify, for the same reason
+            // mastery traits do above.
+            if (data.EffectType == SpecCardEffectType.TurretTypeSignature && data.TargetsTurretType)
+            {
+                string signature = $"{TurretTypeLabel(data.TargetTurretType)}: " +
+                    $"{FormatPercentSigned(data.EffectValue)} {SignatureLabel(data.TargetTurretType)}";
+                return AppendEffectLine(localizedDescription, signature);
+            }
+
             string effect = FormatSpecCardEffect(data.EffectType, data.EffectValue, data.ConditionInterval, data.ConditionThreshold);
+            if (data.TargetsTurretType)
+                effect = $"{TurretTypeLabel(data.TargetTurretType)}: {effect}";
             return AppendEffectLine(localizedDescription, effect);
         }
 
@@ -71,6 +152,12 @@ namespace ETD.UI
                 TraitEffectType.FlameCovenant => $"{pct} {LocalizationManager.Get(header + "flame_covenant", "burn damage, -10% direct damage")}",
                 TraitEffectType.FrostCovenant => $"{pct} {LocalizationManager.Get(header + "frost_covenant", "damage vs slowed/frozen, -10% attack speed")}",
                 TraitEffectType.StormCovenant => $"{pct} {LocalizationManager.Get(header + "storm_covenant", "chain damage, +1 chain target, -10% direct damage")}",
+                // Fallback only: reached if a mastery asset has TargetsTurretType off,
+                // in which case there is no turret type whose mechanic we could name.
+                TraitEffectType.TurretTypeMastery => $"{pct} {LocalizationManager.Get(header + "turret_type_mastery", "damage and half that attack speed")}",
+                TraitEffectType.VoidCovenant => $"{pct} {LocalizationManager.Get(header + "void_covenant", "Void armor corrosion, +15% armor pierce, no critical hits")}",
+                TraitEffectType.PlagueCovenant => $"{pct} {LocalizationManager.Get(header + "plague_covenant", "Toxin pure damage, leaks to all turrets, -50% burn damage")}",
+                TraitEffectType.PrecisionCovenant => $"{pct} {LocalizationManager.Get(header + "precision_covenant", "Railgun Expose, +50% crit damage, -50% chain damage, -20% attack speed")}",
                 _ => $"+{SmartDigits(value)} {type}"
             };
         }
@@ -114,6 +201,9 @@ namespace ETD.UI
                 SpecCardEffectType.HealHealth => $"+{value:0} {L("spec_effect_heal", "health")}",
                 SpecCardEffectType.BurnFromHit => $"{FormatPercentPlus(value)} {L("spec_effect_burn_from_hit", "of hit damage added to burn")}",
                 SpecCardEffectType.SupportExposure => $"{FormatPercentPlus(value)} {L("spec_effect_support_exposure", "burn/chain damage vs aura-slowed enemies")}",
+                // Fallback only: AppendSpecCardNumbers names the actual mechanic when
+                // TargetTurretType is set, which every shipped signature card has.
+                SpecCardEffectType.TurretTypeSignature => $"{pct} {L("spec_effect_turret_signature", "to that turret type's signature effect")}",
                 _ => $"+{SmartDigits(value)} {type}"
             };
         }

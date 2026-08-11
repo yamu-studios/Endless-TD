@@ -54,6 +54,9 @@ namespace ETD.Data
         LaserTimeOnTarget,      // Maintain laser on same target for 10s total (cumulative)
         SpendGoldLifetime,      // Spend 100,000 total gold across all runs (lifetime)
         PercentHPDamage,        // Deal 50,000 total percent-HP damage
+
+        // v1.0 Phase 5 - appended, do not reorder.
+        RevealStealthEnemies,   // Reveal 250 stealth enemies with radar turrets
     }
 
     public enum ChallengeRewardType

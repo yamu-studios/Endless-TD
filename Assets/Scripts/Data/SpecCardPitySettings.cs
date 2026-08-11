@@ -1,7 +1,16 @@
 using System;
 using UnityEngine;
 
-namespace ETD.Gameplay
+// Moved from ETD.Gameplay to ETD.Data so the in-game wiki can read it. The wiki
+// renders in the Hub, which has no RunManager — and RunManager was the only thing
+// holding a reference to these settings. ETD.UI cannot reach ETD.Gameplay's
+// ScriptableObjects from the Hub, but GameDatabase (ETD.Data) is available
+// everywhere. Pure tuning data with no gameplay behaviour, so the move is safe;
+// SpecCardPityState (runtime state) deliberately stays in ETD.Gameplay.
+//
+// The .meta GUID is unchanged, so SpecCardPitySettings_Default.asset and
+// RunManager's serialized reference both still resolve.
+namespace ETD.Data
 {
     [Serializable]
     public class SpecCardRarityWeights

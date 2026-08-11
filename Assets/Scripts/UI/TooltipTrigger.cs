@@ -43,6 +43,19 @@ namespace ETD.UI
         }
 
         /// <summary>
+        /// Re-pushes the current content if this tooltip is on screen right now. Needed
+        /// for content that changes while hovered (a ticking cooldown): ShowTooltip only
+        /// runs once when the hover delay elapses, so without this the panel would keep
+        /// displaying whatever the values were at that instant. No-op when not showing,
+        /// so callers can call it unconditionally.
+        /// </summary>
+        public void RefreshIfShowing()
+        {
+            if (_isShowing)
+                ShowTooltip();
+        }
+
+        /// <summary>
         /// Clear dynamic content, falls back to inspector/data source.
         /// </summary>
         public void ClearContent()

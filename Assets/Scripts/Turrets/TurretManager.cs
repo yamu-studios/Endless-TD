@@ -244,12 +244,6 @@ namespace ETD.Turrets
                 return oldController;
             }
 
-            if (oldController.Data.Type == TurretType.Radar)
-            {
-                Debug.LogWarning("[TurretManager] Radar turrets cannot evolve.");
-                return oldController;
-            }
-
             if (evolutionPath != 0 && evolutionPath != 1)
             {
                 Debug.LogWarning($"[TurretManager] Invalid evolution path: {evolutionPath}");

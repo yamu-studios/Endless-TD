@@ -72,7 +72,15 @@ namespace ETD.Data
         // pre-existing (previously contentless) TraitEffectType.GradeBonus / "Lucky
         // Charm" — same mechanic RunManager.GetRarityWeight already consumed for both
         // initial offers and reroll pools, just never had any card/trait granting it.
-        Luck
+        Luck,
+
+        // v1.0 Phase 5 - appended, do not reorder. Per-turret-type content: a single
+        // effect type whose meaning is specialised by SpecCardData.TargetTurretType,
+        // rather than ten near-identical enum entries. Amplifies that type's signature
+        // mechanic (Basic ArmorBreak, Frost Slow, Laser ramp, Inferno Burn, Lightning
+        // chain, Support aura, Radar reveal, Void Weaken, Toxin pure %, Railgun Expose).
+        // Accumulated in RunData.SpecTurretBonuses, NOT RunData.SpecBonuses.
+        TurretTypeSignature
     }
 
     [CreateAssetMenu(fileName = "New Spec Card", menuName = "ETD/Spec Card Data")]
@@ -88,6 +96,13 @@ namespace ETD.Data
 
         [Header("Theme")]
         public string Theme; // Generic, Frost, Lightning, Inferno, etc.
+
+        [Header("Turret Type Targeting")]
+        [Tooltip("When true, this card's effect applies only to turrets of TargetTurretType " +
+                 "and is accumulated per-type in RunData.SpecTurretBonuses. Required for " +
+                 "TurretTypeSignature; ignored by every other effect type.")]
+        public bool TargetsTurretType;
+        public TurretType TargetTurretType;
 
         [Header("Unlock")]
         public bool IsUnlockedByDefault = true;

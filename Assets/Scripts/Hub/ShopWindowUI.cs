@@ -63,6 +63,7 @@ namespace ETD.Hub
         [SerializeField] private Sprite wisdomCrystalIcon;
         [SerializeField] private Sprite fortifiedCoreIcon;
         [SerializeField] private Sprite fortuneVaultIcon;
+        [SerializeField] private Sprite arcaneFocusIcon;
 
         private MetaProgressionManager _metaManager;
         private readonly List<ShopIconItem> _allItems = new();
@@ -190,11 +191,11 @@ namespace ETD.Hub
             });
 
             // v1.0 active spell cooldown upgrade (Arcane Focus). Icon left unassigned —
-            // manual step: assign a sprite in the Inspector when art exists.
+            // Sprite is assigned through the Arcane Focus icon field above.
             AddSupply(new ShopItemData
             {
                 Id = "basic_spell_upgrade", Name = "Arcane Focus",
-                Icon = null,
+                Icon = arcaneFocusIcon,
                 Description = "Permanently reduces your active spell's cooldown by 5%. Stack ten for -50% cooldown.",
                 CurrentLevel = save.ShopSpellUpgradeLevel, MaxLevel = 10,
                 Price = _spellUpgradePrice, Category = ShopCategory.Basics,

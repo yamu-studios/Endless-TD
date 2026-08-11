@@ -30,11 +30,28 @@ namespace ETD.Turrets
             public float DamageBonus;
             public float SpeedBonus;
 
+            // Radar Path B "Spotter Uplink". Carried in the same resolution pass as the
+            // support auras: a turret can sit in both a support and a spotter radius, so
+            // the two sets of values are kept side by side rather than overwriting.
+            public float RangeBonus;
+            public float CritDamageBonus;
+            public bool StealthVision;
+
             public AuraValues(float damageBonus, float speedBonus)
             {
                 DamageBonus = damageBonus;
                 SpeedBonus = speedBonus;
+                RangeBonus = 0f;
+                CritDamageBonus = 0f;
+                StealthVision = false;
             }
+
+            public bool Matches(in AuraValues other) =>
+                Mathf.Approximately(DamageBonus, other.DamageBonus) &&
+                Mathf.Approximately(SpeedBonus, other.SpeedBonus) &&
+                Mathf.Approximately(RangeBonus, other.RangeBonus) &&
+                Mathf.Approximately(CritDamageBonus, other.CritDamageBonus) &&
+                StealthVision == other.StealthVision;
         }
 
         private struct AppliedSlowAura
@@ -112,8 +129,15 @@ namespace ETD.Turrets
 
             foreach (TurretController support in _turretManager.AllTurrets)
             {
-                if (support == null || !support.IsSupportTurret)
+                if (support == null || !support.ContributesStaticAura)
                     continue;
+
+                if (support.IsSpotterTurret)
+                {
+                    AccumulateSpotterAura(support, ref maxAffectedTurretCount);
+                    if (!support.IsSupportTurret)
+                        continue;
+                }
 
                 _supportTurrets.Add(support);
                 support.EnsureSupportAuraVisual();
@@ -169,7 +193,10 @@ namespace ETD.Turrets
             {
                 TurretController target = _staleAuraTargets[i];
                 if (target != null)
+                {
                     target.SetResolvedSupportAura(0f, 0f);
+                    target.SetResolvedSpotterAura(0f, 0f, false);
+                }
                 _resolvedAuras.Remove(target);
             }
 
@@ -180,14 +207,12 @@ namespace ETD.Turrets
                     continue;
 
                 AuraValues desired = pair.Value;
-                if (_resolvedAuras.TryGetValue(target, out AuraValues applied) &&
-                    Mathf.Approximately(applied.DamageBonus, desired.DamageBonus) &&
-                    Mathf.Approximately(applied.SpeedBonus, desired.SpeedBonus))
-                {
+                if (_resolvedAuras.TryGetValue(target, out AuraValues applied) && applied.Matches(desired))
                     continue;
-                }
 
                 target.SetResolvedSupportAura(desired.DamageBonus, desired.SpeedBonus);
+                target.SetResolvedSpotterAura(
+                    desired.RangeBonus, desired.CritDamageBonus, desired.StealthVision);
                 _resolvedAuras[target] = desired;
             }
             Profiler.EndSample();
@@ -202,6 +227,52 @@ namespace ETD.Turrets
             // event per topology change gives the same result without EventBus spam.
             EventBus.Publish(new BuffTurretsEvent { Count = maxAffectedTurretCount });
             Profiler.EndSample();
+        }
+
+        /// <summary>
+        /// Folds one Path B radar's aura into the desired-aura map. Spotters never
+        /// contribute enemy slows, so they are deliberately kept out of _supportTurrets
+        /// (which only drives the moving-enemy slow sweep).
+        /// </summary>
+        private void AccumulateSpotterAura(TurretController spotter, ref int maxAffectedTurretCount)
+        {
+            if (!spotter.TryGetSpotterAuraProfile(
+                    out float radius,
+                    out float rangeBonus,
+                    out float critDamageBonus))
+            {
+                return;
+            }
+
+            Profiler.BeginSample("SupportAuraSystem.Static.QuerySpotterTurrets");
+            _turretManager.GetTurretsInRange(spotter.transform.position, radius, _nearbyTurrets);
+            Profiler.EndSample();
+
+            maxAffectedTurretCount = Mathf.Max(maxAffectedTurretCount, _nearbyTurrets.Count);
+
+            for (int i = 0; i < _nearbyTurrets.Count; i++)
+            {
+                TurretController target = _nearbyTurrets[i];
+                if (target == null || target == spotter)
+                    continue;
+
+                if (_desiredAuras.TryGetValue(target, out AuraValues existing))
+                {
+                    existing.RangeBonus = Mathf.Max(existing.RangeBonus, rangeBonus);
+                    existing.CritDamageBonus = Mathf.Max(existing.CritDamageBonus, critDamageBonus);
+                    existing.StealthVision = true;
+                    _desiredAuras[target] = existing;
+                }
+                else
+                {
+                    _desiredAuras.Add(target, new AuraValues(0f, 0f)
+                    {
+                        RangeBonus = rangeBonus,
+                        CritDamageBonus = critDamageBonus,
+                        StealthVision = true
+                    });
+                }
+            }
         }
 
         private void RefreshEnemySlowAuras()

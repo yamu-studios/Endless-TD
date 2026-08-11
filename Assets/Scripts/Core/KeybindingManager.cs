@@ -20,7 +20,11 @@ namespace ETD.Core
         UpgradeSelectedTurret,
         SellSelectedTurret,
         ToggleSpecCardStats,
-        PauseOrCancel
+        PauseOrCancel,
+
+        // v1.0 Phase 5 - appended, do not reorder (persisted by name, but keep the
+        // habit consistent with the other enums in this project).
+        CastSpell
     }
 
     public static class KeybindingManager
@@ -278,6 +282,7 @@ namespace ETD.Core
                 KeybindAction.SellSelectedTurret => KeyCode.E,
                 KeybindAction.ToggleSpecCardStats => KeyCode.Tab,
                 KeybindAction.PauseOrCancel => KeyCode.Escape,
+                KeybindAction.CastSpell => KeyCode.F,
                 _ => KeyCode.None
             };
         }
@@ -296,6 +301,7 @@ namespace ETD.Core
                 KeybindAction.SellSelectedTurret => "Sell Selected Turret",
                 KeybindAction.ToggleSpecCardStats => "Toggle Spec Stats",
                 KeybindAction.PauseOrCancel => "Pause / Cancel",
+                KeybindAction.CastSpell => "Cast Spell",
                 _ => action.ToString()
             };
         }

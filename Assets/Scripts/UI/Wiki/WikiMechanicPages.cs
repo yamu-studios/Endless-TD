@@ -17,10 +17,14 @@ namespace ETD.UI.Wiki
     // INCREASES VS MULTIPLIERS
     // =====================================================================
 
-    public sealed class StatStackingWikiPage : IWikiPage
+    public sealed class StatStackingWikiPage : IWikiPage, IWikiListEntry
     {
         public string Id => "stacking";
-        public string Title => LocalizationManager.Get("wiki_page_stacking", "Increases vs. Multipliers");
+        public string Title => LocalizationManager.Get("wiki_page_stacking", "Order of Operations");
+
+        public string Category => WikiCategories.Fundamentals;
+        public UnityEngine.Sprite Icon => null;
+        public bool IsLocked => false;
 
         public IReadOnlyList<WikiSection> BuildSections(IRunStatModifiers mods)
         {
@@ -86,10 +90,14 @@ namespace ETD.UI.Wiki
     // SLOW
     // =====================================================================
 
-    public sealed class SlowWikiPage : IWikiPage
+    public sealed class SlowWikiPage : IWikiPage, IWikiListEntry
     {
         public string Id => "slow";
-        public string Title => LocalizationManager.Get("wiki_page_slow", "Slow & Suppression");
+        public string Title => LocalizationManager.Get("wiki_page_slow", "Slow, Freeze & Shock");
+
+        public string Category => WikiCategories.StatusEffects;
+        public UnityEngine.Sprite Icon => null;
+        public bool IsLocked => false;
 
         public IReadOnlyList<WikiSection> BuildSections(IRunStatModifiers mods)
         {
@@ -133,6 +141,46 @@ namespace ETD.UI.Wiki
                              Mathf_RoundToIntSafe(BalanceConstants.IdentityScalingCap / BalanceConstants.IdentityScalingPerLevel) + 1));
             sections.Add(identity);
 
+            // Freeze and Shock are the only things that actually stop movement, which is
+            // why they belong on this page rather than one of their own: the question a
+            // player has is "why is my slow not enough", and the answer is these.
+            var freeze = new WikiSection(
+                LocalizationManager.Get("wiki_freeze_heading", "Freeze stops movement completely"),
+                LocalizationManager.Get("wiki_freeze_body",
+                    "Freeze is not a very strong slow — it is a hard stop, and it ignores the " +
+                    "speed floor that limits slows. Frozen targets also take amplified damage if " +
+                    "you have invested in that, which makes a freeze window the moment to land " +
+                    "your biggest hits."));
+
+            freeze.Row(LocalizationManager.Get("wiki_freeze_immunity", "Freeze immunity"),
+                       WikiFormat.Seconds(BalanceConstants.DefaultFreezeImmunity),
+                       LocalizationManager.Get("wiki_freeze_immunity_note",
+                           "After a freeze ends, that enemy cannot be refrozen for this long. Without it, a fast turret would freeze-lock a target permanently."));
+            freeze.Row(LocalizationManager.Get("wiki_freeze_locked_out", "Freezing an immune enemy"),
+                       LocalizationManager.GetFormat("wiki_freeze_locked_out_val",
+                           "becomes a {0} slow", WikiFormat.Percent(BalanceConstants.FreezeLockoutSlow)),
+                       LocalizationManager.Get("wiki_freeze_locked_out_note",
+                           "The application is not wasted — it is downgraded, so Frost keeps contributing during the lockout."));
+            freeze.Row(LocalizationManager.Get("wiki_freeze_stacking", "Refreezing early"),
+                       LocalizationManager.Get("wiki_freeze_stacking_val", "does not extend"),
+                       LocalizationManager.Get("wiki_freeze_stacking_note",
+                           "A freeze is only applied to a target that is not already frozen. More freeze sources means better coverage, not longer freezes."));
+            sections.Add(freeze);
+
+            var shock = new WikiSection(
+                LocalizationManager.Get("wiki_shock_heading", "Shock — a brief stop, rolled per hit"),
+                LocalizationManager.Get("wiki_shock_body",
+                    "Shock is the other hard stop. It is far shorter than a freeze but has no " +
+                    "immunity window, so it is rolled fresh on every single hit. Its value scales " +
+                    "with how often you shoot, not with how hard you hit."));
+            shock.Row(LocalizationManager.Get("wiki_shock_duration", "Duration"),
+                      WikiFormat.Seconds(BalanceConstants.ShockDuration));
+            shock.Row(LocalizationManager.Get("wiki_shock_roll", "Rolled"),
+                      LocalizationManager.Get("wiki_shock_roll_val", "once per hit"),
+                      LocalizationManager.Get("wiki_shock_roll_note",
+                          "Fast turrets get far more shock uptime than slow ones at the same chance."));
+            sections.Add(shock);
+
             if (mods != null)
             {
                 var live = new WikiSection(WikiFormat.YourBuildLabel);
@@ -151,6 +199,11 @@ namespace ETD.UI.Wiki
                          LocalizationManager.GetFormat("wiki_slow_example_note",
                              "Enemy moves at {0} of normal speed.",
                              WikiFormat.Percent(TurretStatMath.SlowSpeedMultiplier(effective))));
+
+                live.Row(LocalizationManager.Get("wiki_freeze_amp_mult", "Damage vs. frozen targets"),
+                         WikiFormat.Multiplier(mods.GetFreezeAmplifierMultiplier()));
+                live.Row(LocalizationManager.Get("wiki_shock_chance", "Shock chance per hit"),
+                         WikiFormat.Percent(mods.GetShockChance(), 1));
                 sections.Add(live);
             }
 
@@ -165,10 +218,14 @@ namespace ETD.UI.Wiki
     // BURN
     // =====================================================================
 
-    public sealed class BurnWikiPage : IWikiPage
+    public sealed class BurnWikiPage : IWikiPage, IWikiListEntry
     {
         public string Id => "burn";
         public string Title => LocalizationManager.Get("wiki_page_burn", "Burn & Stacking");
+
+        public string Category => WikiCategories.StatusEffects;
+        public UnityEngine.Sprite Icon => null;
+        public bool IsLocked => false;
 
         public IReadOnlyList<WikiSection> BuildSections(IRunStatModifiers mods)
         {
@@ -237,10 +294,14 @@ namespace ETD.UI.Wiki
     // CHAIN
     // =====================================================================
 
-    public sealed class ChainWikiPage : IWikiPage
+    public sealed class ChainWikiPage : IWikiPage, IWikiListEntry
     {
         public string Id => "chain";
         public string Title => LocalizationManager.Get("wiki_page_chain", "Chain Lightning");
+
+        public string Category => WikiCategories.StatusEffects;
+        public UnityEngine.Sprite Icon => null;
+        public bool IsLocked => false;
 
         private readonly GameDatabase _database;
 

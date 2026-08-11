@@ -20,6 +20,7 @@ namespace ETD.UI
                 EnemyData e => FromEnemyData(e),
                 ChallengeData c => FromChallengeData(c),
                 DynamicTileData d => FromDynamicTile(d),
+                SpellData sp => FromSpellData(sp),
                 _ => TooltipContent.Simple(so.name, "No tooltip data available.")
             };
         }
@@ -27,26 +28,85 @@ namespace ETD.UI
         // === TURRETS ===
 
         public static TooltipContent FromTurretData(TurretData data)
+            => FromTurretData(data, null);
+
+        /// <summary>
+        /// Pre-placement turret tooltip (build bar cards, wiki, data-driven triggers).
+        /// </summary>
+        /// <param name="canAfford">
+        /// Null omits the footer entirely. Otherwise the footer tells the player whether
+        /// clicking the card will actually do anything — the card itself only dims, which
+        /// does not say <em>why</em> it is unavailable.
+        /// </param>
+        public static TooltipContent FromTurretData(TurretData data, bool? canAfford)
         {
-            string atkStr = data.IsContinuousBeam
-                ? $"DPS: {data.Damage}"
-                : $"Damage: {data.Damage}\nInterval: {data.AttackInterval}s";
+            if (data == null)
+                return TooltipContent.Simple("", "");
 
-            string stats = $"{atkStr}\nRange: {data.Range}\nCost: {data.Cost} gold";
+            string baseKey = "turret_" + data.LocalizationKey;
 
-            string footer = "";
-            if (data.PathA != null)
-                footer += $"Evo A: {data.PathA.Name}\n";
-            if (data.PathB != null)
-                footer += $"Evo B: {data.PathB.Name}";
+            string stats = BuildTurretCardStats(data);
+
+            string footer = null;
+            if (canAfford.HasValue)
+            {
+                footer = canAfford.Value
+                    ? "<color=#7CE38B>" + LocalizationManager.Get(
+                          "turret_card_place_hint", "Click to place") + "</color>"
+                    : "<color=#FF8A80>" + LocalizationManager.Get(
+                          "turret_card_cannot_afford", "Not enough gold") + "</color>";
+            }
 
             return new TooltipContent
             {
-                Title = data.DisplayName,
-                Body = data.Description ?? GetTurretTypeDescription(data.Type),
+                Title = SOLocalization.GetName(baseKey, data.DisplayName),
+                Body = SOLocalization.GetDesc(baseKey,
+                    string.IsNullOrEmpty(data.Description)
+                        ? GetTurretTypeDescription(data.Type)
+                        : data.Description),
                 Stats = stats,
-                Footer = string.IsNullOrEmpty(footer) ? null : footer
+                Footer = footer
             };
+        }
+
+        /// <summary>
+        /// Base (un-upgraded) stat block, kept to a single line so the tooltip stays a
+        /// compact glance. Cost is omitted: the card already prints it. Support and Radar
+        /// deal no damage, so their damage/rate stats are skipped rather than printed as a
+        /// misleading "0".
+        /// </summary>
+        private static string BuildTurretCardStats(TurretData data)
+        {
+            const string sep = "   ";
+            var sb = new System.Text.StringBuilder();
+
+            // Support and Radar carry leftover Damage/AttackInterval values in their assets
+            // but never fire, so the type is what decides, not the number.
+            bool attacks = data.Type != TurretType.Support && data.Type != TurretType.Radar
+                           && data.Damage > 0f;
+
+            if (attacks)
+            {
+                if (data.IsContinuousBeam)
+                {
+                    sb.Append(LocalizationManager.Get("wiki_unit_dps", "DPS"))
+                      .Append(": ").Append(data.Damage.ToString("0.#"));
+                }
+                else
+                {
+                    sb.Append(LocalizationManager.Get("damage", "Damage"))
+                      .Append(": ").Append(data.Damage.ToString("0.#"))
+                      .Append(sep)
+                      .Append(LocalizationManager.Get("attack_speed", "Attack Speed"))
+                      .Append(": ").Append(data.AttackSpeed.ToString("0.##")).Append("/s");
+                }
+                sb.Append(sep);
+            }
+
+            sb.Append(LocalizationManager.Get("range", "Range"))
+              .Append(": ").Append(data.Range.ToString("0.#"));
+
+            return sb.ToString();
         }
 
         public static TooltipContent FromPlacedTurret(TurretController turret)
@@ -126,6 +186,67 @@ namespace ETD.UI
                 Stats = $"{LocalizationManager.Get("spec_theme", "Theme")}: {data.Theme}\n{LocalizationManager.Get("rarity", "Rarity")}: {RarityColorHelper.GetLocalizedName(data.Rarity)}",
                 Footer = string.IsNullOrEmpty(lockInfo) ? null : $"<color=#FF6666>Unlock: {lockInfo}</color>",
                 TitleColor = data.GetRarityColor(),
+                HasTitleColor = true
+            };
+        }
+
+        // === SPELLS ===
+
+        /// <summary>
+        /// Static spell tooltip (planning tab / data-driven triggers). Shows the base
+        /// cooldown, since there is no run in progress to read a shop-reduced one from.
+        /// </summary>
+        public static TooltipContent FromSpellData(SpellData data)
+            => FromSpellData(data, data != null ? data.Cooldown : 0f, -1f);
+
+        /// <summary>
+        /// In-run spell tooltip.
+        /// </summary>
+        /// <param name="effectiveCooldown">
+        /// Cooldown after the Arcane Focus shop upgrade — the number the player actually
+        /// waits, which is not visible anywhere else on the HUD.
+        /// </param>
+        /// <param name="cooldownRemaining">
+        /// Seconds left, or a negative value to omit the ready/waiting footer entirely
+        /// (used by the static overload, where there is no live cooldown to report).
+        /// </param>
+        public static TooltipContent FromSpellData(SpellData data, float effectiveCooldown, float cooldownRemaining)
+        {
+            if (data == null)
+                return TooltipContent.Simple("", "");
+
+            string baseKey = "spell_" + data.LocalizationKey;
+
+            string stats = LocalizationManager.GetFormat(
+                "spell_cooldown_format", "Cooldown: {0}s",
+                Mathf.RoundToInt(Mathf.Max(0f, effectiveCooldown)));
+
+            if (data.EffectDuration > 0f)
+            {
+                stats += "\n" + LocalizationManager.GetFormat(
+                    "spell_duration_format", "Duration: {0}s",
+                    Mathf.RoundToInt(data.EffectDuration));
+            }
+
+            string footer = null;
+            if (cooldownRemaining >= 0f)
+            {
+                footer = cooldownRemaining > 0f
+                    ? "<color=#FF8A80>" + LocalizationManager.GetFormat(
+                          "spell_ready_in_format", "Ready in {0}s",
+                          Mathf.CeilToInt(cooldownRemaining)) + "</color>"
+                    : "<color=#7CE38B>" + LocalizationManager.GetFormat(
+                          "spell_cast_hint", "Press {0} to cast",
+                          KeybindingManager.FormatKey(KeybindingManager.Get(KeybindAction.CastSpell))) + "</color>";
+            }
+
+            return new TooltipContent
+            {
+                Title = SOLocalization.GetName(baseKey, data.DisplayName),
+                Body = SOLocalization.GetDesc(baseKey, data.Description),
+                Stats = stats,
+                Footer = footer,
+                TitleColor = new Color(0.65f, 0.75f, 1f),
                 HasTitleColor = true
             };
         }

@@ -30,6 +30,13 @@ namespace ETD.Data
         public Dictionary<SpecCardEffectType, float> SpecBonuses = new();
         public Dictionary<SpecCardEffectType, int> SpecStacks = new();
 
+        // Per-turret-type spec bonuses (SpecCardData.TargetsTurretType). Kept in a
+        // separate dictionary from SpecBonuses because the same effect type can be
+        // held at different magnitudes for different turret types, which a
+        // dictionary keyed on the effect type alone cannot represent.
+        public Dictionary<(SpecCardEffectType, TurretType), float> SpecTurretBonuses = new();
+        public Dictionary<(SpecCardEffectType, TurretType), int> SpecTurretStacks = new();
+
         // Meta
         public int MetaCurrencyEarned;
         public int EnemiesKilled;
@@ -72,6 +79,31 @@ namespace ETD.Data
                 SpecStacks[type]++;
             else
                 SpecStacks[type] = 1;
+        }
+
+        public float GetSpecTurretBonus(SpecCardEffectType type, TurretType turretType)
+        {
+            return SpecTurretBonuses.TryGetValue((type, turretType), out float val) ? val : 0f;
+        }
+
+        public int GetSpecTurretStacks(SpecCardEffectType type, TurretType turretType)
+        {
+            return SpecTurretStacks.TryGetValue((type, turretType), out int val) ? val : 0;
+        }
+
+        public void AddSpecTurretBonus(SpecCardEffectType type, TurretType turretType, float value)
+        {
+            var key = (type, turretType);
+
+            if (SpecTurretBonuses.ContainsKey(key))
+                SpecTurretBonuses[key] += value;
+            else
+                SpecTurretBonuses[key] = value;
+
+            if (SpecTurretStacks.ContainsKey(key))
+                SpecTurretStacks[key]++;
+            else
+                SpecTurretStacks[key] = 1;
         }
     }
 }

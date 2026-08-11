@@ -317,9 +317,13 @@ namespace ETD.Gameplay
             // During the tutorial, hold XP just under the threshold until the
             // objective sequence actually reaches the LevelUp step — otherwise
             // real kill XP can level the player up before that objective appears.
+            // Also hard-capped: the tutorial teaches exactly one level-up, so once the
+            // player is at the cap the bar simply stops filling rather than queueing
+            // spec-card offers behind the remaining objectives.
             bool tutorialLevelUpGated = GameManager.Instance != null
                 && GameManager.Instance.IsTutorialMode
-                && !InGameObjectives.TutorialLevelUpGateOpen;
+                && (!InGameObjectives.TutorialLevelUpGateOpen
+                    || _runData.Level >= TutorialGates.PlayerLevelCap);
             if (tutorialLevelUpGated && _runData.CurrentXP >= _runData.XPToNextLevel)
                 _runData.CurrentXP = _runData.XPToNextLevel - 1f;
 
@@ -553,14 +557,21 @@ namespace ETD.Gameplay
             var covenant = GetActiveCovenant();
             if (covenant.HasValue)
             {
-                var cardElement = GetCardElement(card.EffectType);
+                var cardElement = GetCardElement(card);
                 if (cardElement.HasValue && cardElement.Value != covenant.Value)
                     return false;
             }
 
+            // Turret-targeted cards stack per (effect, turret type), so e.g. the Frost
+            // signature card reaching its cap must not also lock out the Void one.
             int currentStacks = 0;
-            if (_runData != null && _runData.SpecStacks != null)
-                _runData.SpecStacks.TryGetValue(card.EffectType, out currentStacks);
+            if (_runData != null)
+            {
+                if (card.TargetsTurretType)
+                    currentStacks = _runData.GetSpecTurretStacks(card.EffectType, card.TargetTurretType);
+                else if (_runData.SpecStacks != null)
+                    _runData.SpecStacks.TryGetValue(card.EffectType, out currentStacks);
+            }
 
             if (!card.CanStack && currentStacks > 0)
                 return false;
@@ -586,9 +597,27 @@ namespace ETD.Gameplay
         }
 
         /// <summary>Which covenant a spec card belongs to, or null for generic cards.</summary>
-        private static TraitEffectType? GetCardElement(SpecCardEffectType type)
+        private static TraitEffectType? GetCardElement(SpecCardData card)
         {
-            switch (type)
+            if (card == null) return null;
+
+            // Turret-type-targeted cards take their element from the turret they
+            // specialise, not from the (shared) effect type.
+            if (card.TargetsTurretType)
+            {
+                return card.TargetTurretType switch
+                {
+                    TurretType.Inferno => TraitEffectType.FlameCovenant,
+                    TurretType.Frost => TraitEffectType.FrostCovenant,
+                    TurretType.Lightning => TraitEffectType.StormCovenant,
+                    TurretType.Void => TraitEffectType.VoidCovenant,
+                    TurretType.Toxin => TraitEffectType.PlagueCovenant,
+                    TurretType.Railgun => TraitEffectType.PrecisionCovenant,
+                    _ => null // Basic/Laser/Support/Radar — generic, always offerable
+                };
+            }
+
+            switch (card.EffectType)
             {
                 case SpecCardEffectType.BurnDamage:
                 case SpecCardEffectType.BurnDamageStrong:
@@ -784,7 +813,10 @@ namespace ETD.Gameplay
                 return;
             }
 
-            _runData.AddSpecBonus(card.EffectType, card.EffectValue);
+            if (card.TargetsTurretType)
+                _runData.AddSpecTurretBonus(card.EffectType, card.TargetTurretType, card.EffectValue);
+            else
+                _runData.AddSpecBonus(card.EffectType, card.EffectValue);
             _runData.SpecCardsChosen++;
             ResetPaidRerolls(); // offer consumed - next level-up starts at the cheapest paid reroll
 

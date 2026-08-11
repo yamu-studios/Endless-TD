@@ -175,6 +175,7 @@ namespace ETD.Meta
             EventBus.Subscribe<ChainLightningFiredEvent>(OnChainFired);     // NEW
             EventBus.Subscribe<LaserHitEvent>(OnLaserHit);                  // NEW
             EventBus.Subscribe<PercentHPDamageEvent>(OnPercentHPDamage);
+            EventBus.Subscribe<StealthEnemyRevealedEvent>(OnStealthEnemyRevealed);
         }
 
         // =================================================================
@@ -613,6 +614,13 @@ namespace ETD.Meta
             if (evt.Current > held) SetProgress(ChallengeConditionType.HoldGoldAtOnce, evt.Current);
 
             CheckAllChallenges();
+        }
+
+        // Radar unlock progress (Signals Mastery). Already latched per enemy in
+        // EnemyController.AddRadarReveal, so this is a plain +1 per distinct enemy.
+        private void OnStealthEnemyRevealed(StealthEnemyRevealedEvent evt)
+        {
+            AddProgress(ChallengeConditionType.RevealStealthEnemies, 1);
         }
 
         private void OnPercentHPDamage(PercentHPDamageEvent evt)
@@ -1535,6 +1543,7 @@ namespace ETD.Meta
             EventBus.Unsubscribe<ChainLightningFiredEvent>(OnChainFired);     // NEW
             EventBus.Unsubscribe<LaserHitEvent>(OnLaserHit);                  // NEW
             EventBus.Unsubscribe<PercentHPDamageEvent>(OnPercentHPDamage);
+            EventBus.Unsubscribe<StealthEnemyRevealedEvent>(OnStealthEnemyRevealed);
             EventBus.Unsubscribe<EnemyBurnedKilledEvent>(OnBurningEnemyKill);
             EventBus.Unsubscribe<ProjectileSpawnedEvent>(OnProjectileFired);
             EventBus.Unsubscribe<ProjectileSpawnedBatchEvent>(OnProjectileFiredBatch);

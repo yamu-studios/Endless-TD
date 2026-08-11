@@ -149,10 +149,10 @@ namespace ETD.Data
             switch (tier)
             {
                 case EnemyTier.Elite:
-                    hp *= 5.0;
+                    hp *= Core.GameConstants.ELITE_HP_MULTIPLIER;
                     break;
                 case EnemyTier.Boss:
-                    hp *= 25.0;
+                    hp *= Core.GameConstants.BOSS_HP_MULTIPLIER;
                     break;
             }
 

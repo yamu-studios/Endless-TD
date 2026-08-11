@@ -42,6 +42,11 @@ namespace ETD.UI
         [SerializeField] private TMP_Text _rewardText;
         [SerializeField] private TMP_Text _statusText;
 
+        [Tooltip("Turret-type weaknesses and resistances. Every enemy asset carries these " +
+                 "and nothing in-run showed them before, so leaving this unassigned keeps " +
+                 "the panel exactly as it was.")]
+        [SerializeField] private TMP_Text _affinityText;
+
         [Header("Visuals")]
         [SerializeField] private Image _iconImage;
         [SerializeField] private Image _healthFill;
@@ -190,6 +195,58 @@ namespace ETD.UI
             }
 
             SetText(_statusText, BuildStatusText(_selected));
+            SetText(_affinityText, BuildAffinityText(data));
+        }
+
+        /// <summary>
+        /// Turret-type affinities, weaknesses first because that is the actionable half:
+        /// the player is looking at this panel to decide what to build. Positive
+        /// ResistancePercent reduces damage, negative amplifies it — see
+        /// EnemyController.ApplyMitigation. The run-wide AffinityPierce is deliberately
+        /// not folded in: this reads the enemy's own profile, and pierce only ever
+        /// shrinks the resist half, never the weakness.
+        /// </summary>
+        private static string BuildAffinityText(EnemyData data)
+        {
+            var affinities = data != null ? data.Affinities : null;
+            if (affinities == null || affinities.Length == 0)
+                return LocalizationManager.Get("ui_enemy_affinity_none", "No turret weaknesses");
+
+            string weak = string.Empty;
+            string resist = string.Empty;
+
+            for (int i = 0; i < affinities.Length; i++)
+            {
+                float value = affinities[i].ResistancePercent;
+                if (Mathf.Abs(value) < 0.0001f)
+                    continue;
+
+                string entry = BalanceDescriptionFormatter.TurretTypeLabel(affinities[i].Type)
+                               + " " + Mathf.Abs(value).ToString("0%");
+
+                if (value < 0f)
+                    AppendStatus(ref weak, true, entry);
+                else
+                    AppendStatus(ref resist, true, entry);
+            }
+
+            string result = string.Empty;
+            if (!string.IsNullOrEmpty(weak))
+            {
+                result = "<color=#7CE38B>" + LocalizationManager.Get("ui_enemy_weak_to", "Weak to")
+                         + ": " + weak + "</color>";
+            }
+            if (!string.IsNullOrEmpty(resist))
+            {
+                if (!string.IsNullOrEmpty(result))
+                    result += "\n";
+                result += "<color=#FF8A80>" + LocalizationManager.Get("ui_enemy_resists", "Resists")
+                          + ": " + resist + "</color>";
+            }
+
+            return string.IsNullOrEmpty(result)
+                ? LocalizationManager.Get("ui_enemy_affinity_none", "No turret weaknesses")
+                : result;
         }
 
         private void EnsureDraggable()

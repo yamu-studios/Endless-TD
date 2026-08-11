@@ -64,6 +64,76 @@ namespace ETD.Data
         /// </summary>
         public const float ChainBounceBackDamageFraction = 0.5f;
 
+        // --- Wave composition (WaveManager) ---
+        // The wiki has to quote these from the Hub, where no WaveManager exists.
+
+        /// <summary>Spawn budget at wave 0, before any per-wave growth.</summary>
+        public const int WaveBaseBudget = 50;
+
+        /// <summary>Linear part of the per-wave spawn budget growth.</summary>
+        public const int WaveBudgetPerWave = 8;
+
+        /// <summary>Quadratic part of the budget growth: budget += wave^2 * this.</summary>
+        public const float WaveBudgetQuadraticScale = 0.3f;
+
+        /// <summary>Seconds between spawns at wave 0.</summary>
+        public const float WaveBaseSpawnInterval = 0.6f;
+
+        /// <summary>Seconds shaved off the spawn interval per wave.</summary>
+        public const float WaveSpawnIntervalReduction = 0.005f;
+
+        /// <summary>Floor on the spawn interval, so late waves stop compressing.</summary>
+        public const float WaveMinSpawnInterval = 0.2f;
+
+        /// <summary>An elite wave gains one extra elite every this many waves.</summary>
+        public const int EliteCountWaveStep = 15;
+
+        // --- Freeze / Shock (EnemyController.ApplyStatus) ---
+
+        /// <summary>
+        /// Per-enemy window after a freeze ends during which it cannot be refrozen.
+        /// Without it, a fast turret re-applying a short freeze every hit would freeze-lock
+        /// an enemy permanently.
+        /// </summary>
+        public const float DefaultFreezeImmunity = 4f;
+
+        /// <summary>
+        /// Freeze applied to an immune enemy is downgraded to a slow of this strength,
+        /// so Frost still contributes during the lockout instead of doing nothing.
+        /// </summary>
+        public const float FreezeLockoutSlow = 0.5f;
+
+        /// <summary>Duration of the Shock hard-stop rolled per hit by the shock chance bonus.</summary>
+        public const float ShockDuration = 0.25f;
+
+        // --- Health decay (RunStatModifiers, Entropy Engine) ---
+
+        /// <summary>
+        /// Floor for non-lethal decay, as a fraction of max HP. Decay can never take an
+        /// enemy below this, which is what keeps it from being a standalone win condition.
+        /// </summary>
+        public const float EntropyMinHpFraction = 0.005f;
+
+        // --- Damage mitigation (EnemyController.ApplyMitigation) ---
+
+        /// <summary>
+        /// Ceiling on an enemy's effective Armor. Without it a late-wave armor roll
+        /// could reach total immunity, which no amount of pierce could dig out of.
+        /// </summary>
+        public const float MaxArmorMitigation = 0.9f;
+
+        /// <summary>Ceiling on turret-type affinity RESISTANCE (damage reduction).</summary>
+        public const float MaxAffinityResistance = 0.9f;
+
+        /// <summary>
+        /// Floor on turret-type affinity, i.e. the strongest possible WEAKNESS.
+        /// -1 doubles incoming damage from that turret type.
+        /// </summary>
+        public const float MaxAffinityWeakness = -1f;
+
+        /// <summary>Every mitigated hit lands for at least this much, so armor can stall a build but never fully wall it.</summary>
+        public const float MinDamagePerHit = 1f;
+
         // --- Slow ---
 
         /// <summary>

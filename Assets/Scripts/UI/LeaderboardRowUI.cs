@@ -22,6 +22,12 @@ namespace ETD.UI
         [Header("Default Avatar")]
         [SerializeField] private Texture2D _defaultAvatar;
 
+        [Header("Name Colors")]
+        [SerializeField] private Color _defaultNameColor = Color.white;
+        [Tooltip("Name colour for the local player's own row, so they can spot themselves.")]
+        [SerializeField] private Color _localPlayerNameColor = new Color(1f, 0.84f, 0.2f);
+        [SerializeField] private FontStyles _localPlayerFontStyle = FontStyles.Bold;
+
         [Header("Rank Colors")]
         [SerializeField] private Color _goldColor = new Color(1f, 0.84f, 0f);
         [SerializeField] private Color _silverColor = new Color(0.75f, 0.75f, 0.75f);
@@ -46,7 +52,7 @@ namespace ETD.UI
             bool highlight = entry.IsLocalPlayer || isPlayerRow;
 
             SetRank(entry.Rank, isSeparator: isPlayerRow && !entry.IsLocalPlayer);
-            SetName(entry.PlayerName);
+            SetName(entry.PlayerName, entry.IsLocalPlayer);
             SetScore(entry.Score);
             SetAvatar(entry.AvatarTexture);
             SetBackground(highlight ? _playerColor : _defaultColor);
@@ -59,7 +65,7 @@ namespace ETD.UI
         public void SetLocalEntry(int rank, LeaderboardEntry entry)
         {
             SetRank(rank);
-            SetName(LocalizationManager.Get("leaderboard_you", "You"));
+            SetName(LocalizationManager.Get("leaderboard_you", "You"), isLocalPlayer: true);
             SetScore(entry.SurvivedWave);
             SetAvatar(null);
             SetBackground(_defaultColor);
@@ -86,7 +92,7 @@ namespace ETD.UI
                 _rankText.color = _defaultRankColor;
             }
 
-            SetName(LocalizationManager.Get("leaderboard_not_ranked_yet", "Not Ranked Yet"));
+            SetName(LocalizationManager.Get("leaderboard_not_ranked_yet", "Not Ranked Yet"), isLocalPlayer: true);
             SetScore(0);
             SetAvatar(null);
             SetBackground(_playerColor);
@@ -108,10 +114,18 @@ namespace ETD.UI
                 : _defaultRankColor;
         }
 
-        private void SetName(string playerName)
+        /// <summary>
+        /// Sets the name, tinting it when the row belongs to the local player so their
+        /// entry is findable at a glance in a long list. The row background already
+        /// highlights, but that reads weakly next to the neighbouring rows.
+        /// </summary>
+        private void SetName(string playerName, bool isLocalPlayer = false)
         {
-            if (_nameText != null)
-                _nameText.text = string.IsNullOrWhiteSpace(playerName) ? _emptyText : playerName;
+            if (_nameText == null) return;
+
+            _nameText.text = string.IsNullOrWhiteSpace(playerName) ? _emptyText : playerName;
+            _nameText.color = isLocalPlayer ? _localPlayerNameColor : _defaultNameColor;
+            _nameText.fontStyle = isLocalPlayer ? _localPlayerFontStyle : FontStyles.Normal;
         }
 
         private void SetScore(int score)
