@@ -1291,5 +1291,8 @@
   "wiki_tiles_greed_body": "強欲マスはアップグレード費用と威力をどちらかの方向に交換します。得かどうかは、そのタレットにこの先どれだけゴールドを注ぎ込むつもりかで完全に決まります。",
   "wiki_tiles_stat_cost": "アップグレード費用",
   "wiki_tiles_stat_gold": "撃破時ゴールド",
-  "wiki_tiles_stat_other": "効果"
+  "wiki_tiles_stat_other": "効果",
+  "end_stats_damage_void": "ヴォイド",
+  "end_stats_damage_toxin": "毒",
+  "end_stats_damage_railgun": "レールガン"
 }

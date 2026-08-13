@@ -1291,5 +1291,8 @@
   "wiki_tiles_greed_body": "Las casillas de codicia intercambian coste de mejora por potencia en un sentido o en el otro. Si son buenas depende por completo de cuánto oro esperes hundir en esa torreta durante el resto de la partida.",
   "wiki_tiles_stat_cost": "coste de mejora",
   "wiki_tiles_stat_gold": "oro por baja",
-  "wiki_tiles_stat_other": "efecto"
+  "wiki_tiles_stat_other": "efecto",
+  "end_stats_damage_void": "Vacío",
+  "end_stats_damage_toxin": "Toxina",
+  "end_stats_damage_railgun": "Cañón de riel"
 }

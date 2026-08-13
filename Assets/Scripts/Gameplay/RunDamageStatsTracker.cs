@@ -1,7 +1,6 @@
 // ============================================================================
 // ETD.Gameplay - RunDamageStatsTracker.cs
-// Collects end-game damage breakdown by turret family only.
-// v9: end screen rows are now Basic/Normal, Frost, Inferno, Laser, Lightning + Total.
+// Collects end-game damage breakdown by turret family.
 // ============================================================================
 using System;
 using System.Collections.Generic;
@@ -42,16 +41,10 @@ namespace ETD.Gameplay
             }
         }
 
-        // End-screen damage rows are intentionally limited to player-facing turret families.
-        // Support/Radar are not shown and are not counted into the displayed total.
+        // Keep this driven by the enum so newly-added turret families are recorded
+        // automatically. Families that deal no damage simply produce no row.
         private static readonly TurretType[] DisplayTurretTypes =
-        {
-            TurretType.Basic,
-            TurretType.Frost,
-            TurretType.Inferno,
-            TurretType.Laser,
-            TurretType.Lightning
-        };
+            (TurretType[])Enum.GetValues(typeof(TurretType));
 
         private readonly Dictionary<int, DamageBucket> _byTurretType = new();
         private readonly float[] _byTurretFamily = new float[Enum.GetValues(typeof(TurretType)).Length];
@@ -190,7 +183,7 @@ namespace ETD.Gameplay
             return (uint)index < (uint)_byTurretFamily.Length ? _byTurretFamily[index] : 0f;
         }
 
-        public string BuildLocalizedSummary(int maxTurretRows = 5)
+        public string BuildLocalizedSummary(int maxTurretRows = int.MaxValue)
         {
             var sb = new StringBuilder(256);
             sb.AppendLine(LocalizationManager.Get("end_stats_damage_title", "Damage Stats"));
@@ -238,17 +231,7 @@ namespace ETD.Gameplay
                 return false;
 
             turretType = (TurretType)sourceTurretType;
-            switch (turretType)
-            {
-                case TurretType.Basic:
-                case TurretType.Frost:
-                case TurretType.Inferno:
-                case TurretType.Laser:
-                case TurretType.Lightning:
-                    return true;
-                default:
-                    return false;
-            }
+            return true;
         }
 
         private static void AddToBucket(DamageBucket bucket, DamageNumberKind kind, float amount)
@@ -282,6 +265,9 @@ namespace ETD.Gameplay
                 TurretType.Inferno => "end_stats_damage_inferno",
                 TurretType.Laser => "end_stats_damage_laser",
                 TurretType.Lightning => "end_stats_damage_lightning",
+                TurretType.Void => "end_stats_damage_void",
+                TurretType.Toxin => "end_stats_damage_toxin",
+                TurretType.Railgun => "end_stats_damage_railgun",
                 _ => "end_stats_damage_unknown"
             };
 
@@ -292,7 +278,10 @@ namespace ETD.Gameplay
                 TurretType.Inferno => "Inferno",
                 TurretType.Laser => "Laser",
                 TurretType.Lightning => "Lightning",
-                _ => "Unknown"
+                TurretType.Void => "Void",
+                TurretType.Toxin => "Toxin",
+                TurretType.Railgun => "Railgun",
+                _ => type.ToString()
             };
 
             return LocalizationManager.Get(key, fallback);
@@ -322,7 +311,7 @@ namespace ETD.Gameplay
 
             public static List<Row> Get()
             {
-                return Pool.Count > 0 ? Pool.Pop() : new List<Row>(5);
+                return Pool.Count > 0 ? Pool.Pop() : new List<Row>(DisplayTurretTypes.Length);
             }
 
             public static void Release(List<Row> list)

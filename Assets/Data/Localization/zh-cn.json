@@ -1291,5 +1291,8 @@
   "wiki_tiles_greed_body": "贪婪地块在升级费用和威力之间做双向交换。它们划不划算，完全取决于你打算在这一局剩下的时间里往那座炮塔投入多少金币。",
   "wiki_tiles_stat_cost": "升级费用",
   "wiki_tiles_stat_gold": "击杀金币",
-  "wiki_tiles_stat_other": "效果"
+  "wiki_tiles_stat_other": "效果",
+  "end_stats_damage_void": "虚空",
+  "end_stats_damage_toxin": "毒素",
+  "end_stats_damage_railgun": "轨道炮"
 }

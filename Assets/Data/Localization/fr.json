@@ -1291,5 +1291,8 @@
   "wiki_tiles_greed_body": "Les cases de cupidité échangent coût d’amélioration et puissance, dans un sens ou dans l’autre. Leur intérêt dépend entièrement de la quantité d’or que vous comptez encore investir dans cette tourelle pour le reste de la partie.",
   "wiki_tiles_stat_cost": "coût d’amélioration",
   "wiki_tiles_stat_gold": "or par élimination",
-  "wiki_tiles_stat_other": "effet"
+  "wiki_tiles_stat_other": "effet",
+  "end_stats_damage_void": "Néant",
+  "end_stats_damage_toxin": "Toxine",
+  "end_stats_damage_railgun": "Canon électrique"
 }

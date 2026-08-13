@@ -1291,5 +1291,8 @@
   "wiki_tiles_greed_body": "Girighetsrutor byter uppgraderingskostnad mot styrka, åt det ena eller andra hållet. Om de är bra beror helt på hur mycket guld du räknar med att ösa i det tornet under resten av rundan.",
   "wiki_tiles_stat_cost": "uppgraderingskostnad",
   "wiki_tiles_stat_gold": "guld per dödad",
-  "wiki_tiles_stat_other": "effekt"
+  "wiki_tiles_stat_other": "effekt",
+  "end_stats_damage_void": "Tomrum",
+  "end_stats_damage_toxin": "Gift",
+  "end_stats_damage_railgun": "Rälsgevär"
 }

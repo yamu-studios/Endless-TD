@@ -1291,5 +1291,8 @@
   "wiki_tiles_greed_body": "Greed tiles trade upgrade cost for power in one direction or the other. Whether they are good depends entirely on how much gold you expect to sink into that turret for the rest of the run.",
   "wiki_tiles_stat_cost": "upgrade cost",
   "wiki_tiles_stat_gold": "gold from kills",
-  "wiki_tiles_stat_other": "effect"
+  "wiki_tiles_stat_other": "effect",
+  "end_stats_damage_void": "Void",
+  "end_stats_damage_toxin": "Toxin",
+  "end_stats_damage_railgun": "Railgun"
 }

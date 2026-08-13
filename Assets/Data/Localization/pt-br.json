@@ -1291,5 +1291,8 @@
   "wiki_tiles_greed_body": "Blocos de ganância trocam custo de melhoria por poder, num sentido ou no outro. Se compensam depende inteiramente de quanto ouro você espera afundar naquela torre no resto da partida.",
   "wiki_tiles_stat_cost": "custo de melhoria",
   "wiki_tiles_stat_gold": "ouro por abate",
-  "wiki_tiles_stat_other": "efeito"
+  "wiki_tiles_stat_other": "efeito",
+  "end_stats_damage_void": "Vazio",
+  "end_stats_damage_toxin": "Toxina",
+  "end_stats_damage_railgun": "Canhão elétrico"
 }

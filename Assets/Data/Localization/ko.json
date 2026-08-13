@@ -1291,5 +1291,8 @@
   "wiki_tiles_greed_body": "탐욕 타일은 업그레이드 비용과 위력을 어느 한쪽 방향으로 맞바꿉니다. 이득인지 아닌지는 그 포탑에 남은 게임 동안 골드를 얼마나 쏟을 생각인지에 전적으로 달려 있습니다.",
   "wiki_tiles_stat_cost": "업그레이드 비용",
   "wiki_tiles_stat_gold": "처치 골드",
-  "wiki_tiles_stat_other": "효과"
+  "wiki_tiles_stat_other": "효과",
+  "end_stats_damage_void": "공허",
+  "end_stats_damage_toxin": "독성",
+  "end_stats_damage_railgun": "레일건"
 }

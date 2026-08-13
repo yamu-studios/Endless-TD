@@ -1291,5 +1291,8 @@
   "wiki_tiles_greed_body": "Клітинки жадібності міняють вартість покращень на міць у той чи інший бік. Чи добрі вони, цілком залежить від того, скільки золота ви розраховуєте вкласти в цю турель до кінця забігу.",
   "wiki_tiles_stat_cost": "вартість покращення",
   "wiki_tiles_stat_gold": "золото за вбивства",
-  "wiki_tiles_stat_other": "ефект"
+  "wiki_tiles_stat_other": "ефект",
+  "end_stats_damage_void": "Порожнеча",
+  "end_stats_damage_toxin": "Токсин",
+  "end_stats_damage_railgun": "Рейкотрон"
 }

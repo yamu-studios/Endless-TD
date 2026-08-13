@@ -1291,5 +1291,8 @@
   "wiki_tiles_greed_body": "Le caselle avidità scambiano costo di potenziamento e potenza, in una direzione o nell'altra. Se convengano dipende interamente da quanto oro prevedi di riversare in quella torretta per il resto della partita.",
   "wiki_tiles_stat_cost": "costo di potenziamento",
   "wiki_tiles_stat_gold": "oro dalle uccisioni",
-  "wiki_tiles_stat_other": "effetto"
+  "wiki_tiles_stat_other": "effetto",
+  "end_stats_damage_void": "Vuoto",
+  "end_stats_damage_toxin": "Tossina",
+  "end_stats_damage_railgun": "Cannone a rotaia"
 }

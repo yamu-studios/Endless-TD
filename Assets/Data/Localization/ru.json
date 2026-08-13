@@ -1291,5 +1291,8 @@
   "wiki_tiles_greed_body": "Клетки жадности меняют стоимость улучшений на мощь в ту или иную сторону. Хороши ли они, целиком зависит от того, сколько золота вы рассчитываете вложить в эту турель до конца забега.",
   "wiki_tiles_stat_cost": "стоимость улучшения",
   "wiki_tiles_stat_gold": "золото за убийства",
-  "wiki_tiles_stat_other": "эффект"
+  "wiki_tiles_stat_other": "эффект",
+  "end_stats_damage_void": "Бездна",
+  "end_stats_damage_toxin": "Токсин",
+  "end_stats_damage_railgun": "Рельсотрон"
 }

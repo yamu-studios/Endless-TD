@@ -1291,5 +1291,8 @@
   "wiki_tiles_greed_body": "Açgözlü zeminler yükseltme maliyetiyle gücü şu ya da bu yönde takas eder. İyi olup olmadıkları tamamen o kuleye koşunun geri kalanında ne kadar altın gömmeyi beklediğinize bağlıdır.",
   "wiki_tiles_stat_cost": "yükseltme maliyeti",
   "wiki_tiles_stat_gold": "öldürmeden altın",
-  "wiki_tiles_stat_other": "etki"
+  "wiki_tiles_stat_other": "etki",
+  "end_stats_damage_void": "Hiçlik",
+  "end_stats_damage_toxin": "Toksin",
+  "end_stats_damage_railgun": "Raylı Top"
 }

@@ -1,7 +1,7 @@
 // ============================================================================
 // ETD.UI - EndGameDamageStatsUI.cs
 // Polished end-run damage breakdown with icons, labels, values and bars.
-// v9: rows are based only on turret families: Basic, Frost, Inferno, Laser, Lightning.
+// Shows every turret family that dealt damage during the run.
 // ============================================================================
 using System;
 using System.Collections.Generic;
@@ -31,14 +31,13 @@ namespace ETD.UI
         [SerializeField] private RectTransform _rowContainer;
         [SerializeField] private EndGameDamageStatRowUI _rowPrefab;
         [SerializeField] private EndGameDamageStatRowUI[] _staticRows;
-        [SerializeField] private int _maxRows = 5;
         [SerializeField] private float _hideBelowDamage = 0.5f;
 
         [Header("Turret Family Icons")]
         [SerializeField] private TurretDamageIcon[] _icons;
 
-        private readonly List<EndGameDamageStatRowUI> _runtimeRows = new(5);
-        private readonly List<RunDamageStatsTracker.TurretDamageStat> _stats = new(5);
+        private readonly List<EndGameDamageStatRowUI> _runtimeRows = new(8);
+        private readonly List<RunDamageStatsTracker.TurretDamageStat> _stats = new(8);
 
         public void Show(RunDamageStatsTracker tracker)
         {
@@ -67,7 +66,7 @@ namespace ETD.UI
             tracker.GetTurretDamageStats(_stats, _hideBelowDamage);
             _stats.Sort((a, b) => b.Amount.CompareTo(a.Amount));
 
-            int rowCount = Mathf.Min(Mathf.Max(0, _maxRows), _stats.Count);
+            int rowCount = _stats.Count;
             float maxDamage = rowCount > 0 ? Mathf.Max(1f, _stats[0].Amount) : 1f;
 
             for (int i = 0; i < rowCount; i++)

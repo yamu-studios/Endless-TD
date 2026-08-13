@@ -1291,5 +1291,8 @@
   "wiki_tiles_greed_body": "Políčka chamtivosti mění cenu vylepšení za sílu, v jednom nebo druhém směru. Jestli se vyplatí, závisí zcela na tom, kolik zlata do té věže hodláš do konce běhu ještě nalít.",
   "wiki_tiles_stat_cost": "cena vylepšení",
   "wiki_tiles_stat_gold": "zlato za zabití",
-  "wiki_tiles_stat_other": "efekt"
+  "wiki_tiles_stat_other": "efekt",
+  "end_stats_damage_void": "Prázdnota",
+  "end_stats_damage_toxin": "Toxin",
+  "end_stats_damage_railgun": "Elektromagnetické dělo"
 }

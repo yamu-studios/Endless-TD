@@ -1291,5 +1291,8 @@
   "wiki_tiles_greed_body": "Hebzuchttegels ruilen upgradekosten tegen kracht, in de ene of de andere richting. Of ze goed zijn hangt volledig af van hoeveel goud je nog in die toren denkt te steken voor de rest van de run.",
   "wiki_tiles_stat_cost": "upgradekosten",
   "wiki_tiles_stat_gold": "goud per kill",
-  "wiki_tiles_stat_other": "effect"
+  "wiki_tiles_stat_other": "effect",
+  "end_stats_damage_void": "Leegte",
+  "end_stats_damage_toxin": "Gif",
+  "end_stats_damage_railgun": "Railgun"
 }

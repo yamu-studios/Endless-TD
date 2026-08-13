@@ -1291,5 +1291,8 @@
   "wiki_tiles_greed_body": "Pola chciwości wymieniają koszt ulepszeń na moc w jedną albo drugą stronę. To, czy są dobre, zależy wyłącznie od tego, ile złota planujesz jeszcze utopić w tej wieżyczce do końca podejścia.",
   "wiki_tiles_stat_cost": "koszt ulepszenia",
   "wiki_tiles_stat_gold": "złoto za zabójstwa",
-  "wiki_tiles_stat_other": "efekt"
+  "wiki_tiles_stat_other": "efekt",
+  "end_stats_damage_void": "Pustka",
+  "end_stats_damage_toxin": "Toksyna",
+  "end_stats_damage_railgun": "Działo kinetyczne"
 }
