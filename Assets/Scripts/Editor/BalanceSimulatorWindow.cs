@@ -42,8 +42,6 @@ namespace ETD.EditorTools
         private float _eliteGoldMult = 5f;
         private float _bossGoldMult = 25f;
         private int _startingGold = 60;
-        private bool _includePrepSkipIncome = true;
-        private float _prepSkipGoldPerWave = 15f; // BASE_PREP_TIME * SKIP_REWARD_GOLD_PER_SECOND
         private float _incomeMultiplier = 1f;
 
         // --- Player model (turret archetype; defaults = Tower_Basic) ---
@@ -81,7 +79,6 @@ namespace ETD.EditorTools
             EditorGUILayout.LabelField("Economy", EditorStyles.boldLabel);
             _goldKillWaveScale = EditorGUILayout.FloatField("Gold Kill Wave Scale", _goldKillWaveScale);
             _startingGold = EditorGUILayout.IntField("Starting Gold", _startingGold);
-            _includePrepSkipIncome = EditorGUILayout.Toggle("Include Prep-Skip Income", _includePrepSkipIncome);
             _incomeMultiplier = EditorGUILayout.FloatField("Income Multiplier (meta)", _incomeMultiplier);
 
             EditorGUILayout.LabelField("Player (turret archetype)", EditorStyles.boldLabel);
@@ -197,8 +194,6 @@ namespace ETD.EditorTools
                 }
 
                 // ---- Income ----
-                if (_includePrepSkipIncome)
-                    waveGold += _prepSkipGoldPerWave * (wave + 1);
                 waveGold *= _incomeMultiplier;
 
                 gold += waveGold;

@@ -103,6 +103,7 @@ namespace ETD.Core
             {
                 language = save.SelectedLanguage,
                 alwaysSkipEnabled = save.AlwaysSkipPrep,
+                autoUseGlobalAbility = save.AutoUseGlobalAbility,
                 masterVolume = save.MasterVolume,
                 musicVolume = save.MusicVolume,
                 sfxVolume = save.GameSoundsVolume

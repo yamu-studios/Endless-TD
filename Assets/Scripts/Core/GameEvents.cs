@@ -30,7 +30,7 @@ namespace ETD.Core
     public struct WaveStartedEvent { public int WaveNumber; }
     public struct WaveCompletedEvent { public int WaveNumber; }
     public struct PrepPhaseStartedEvent { public float Duration; }
-    public struct PrepPhaseSkipedEvent { public int Reward; }
+    public struct PrepPauseChangedEvent { public bool IsPaused; }
 
     // === ECONOMY ===
     public struct GoldChangedEvent { public int Current; public int Delta; }

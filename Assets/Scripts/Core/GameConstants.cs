@@ -38,7 +38,6 @@ namespace ETD.Core
 
         // Waves
         public const float BASE_PREP_TIME = 15f;
-        public const float SKIP_REWARD_GOLD_PER_SECOND = 1f;
         public const int ELITE_WAVE_INTERVAL = 5;
         public const int BOSS_WAVE_INTERVAL = 25;
         public const int INCREASED_ELITE_FREQUENCY_WAVE = 75;

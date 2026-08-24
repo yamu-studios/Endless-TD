@@ -19,8 +19,11 @@ namespace ETD.UI
         private Vector2 _shownPos;
         private Vector2 _hiddenPos;
         private Coroutine _slideCoroutine;
+        private bool _isShown;
 
         bool shouldSlide;
+
+        public Vector2 HiddenPosition => _hiddenPos;
 
         private void Awake()
         {
@@ -32,6 +35,7 @@ namespace ETD.UI
 
             // Start hidden
             _buttonRect.anchoredPosition = _hiddenPos;
+            _isShown = false;
             //gameObject.SetActive(false);
 
             EventBus.Subscribe<PrepPhaseStartedEvent>(OnPrepStarted);
@@ -40,6 +44,7 @@ namespace ETD.UI
 
         private void OnPrepStarted(PrepPhaseStartedEvent evt)
         {
+            _isShown = true;
             gameObject.SetActive(true);
             Slide(_hiddenPos, _shownPos);
         }
@@ -52,7 +57,28 @@ namespace ETD.UI
 
         private void OnWaveStarted(WaveStartedEvent evt)
         {
+            _isShown = false;
             Slide(_shownPos, _hiddenPos, hideAfter: false);
+        }
+
+        public void SetHiddenPosition(Vector2 hiddenPosition)
+        {
+            _hiddenPos = hiddenPosition;
+            if (_buttonRect == null)
+                return;
+
+            if (_slideCoroutine != null)
+            {
+                StopCoroutine(_slideCoroutine);
+                _slideCoroutine = null;
+                Vector2 target = _isShown ? _shownPos : _hiddenPos;
+                _slideCoroutine = StartCoroutine(SlideCoroutine(
+                    _buttonRect.anchoredPosition, target, hideAfter: false));
+            }
+            else if (!_isShown)
+            {
+                _buttonRect.anchoredPosition = _hiddenPos;
+            }
         }
 
         private void Slide(Vector2 from, Vector2 to, bool hideAfter = false)

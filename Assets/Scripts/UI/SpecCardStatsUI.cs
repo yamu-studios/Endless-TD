@@ -278,11 +278,7 @@ namespace ETD.UI
 
         private float GetEffectiveWaveBonus(float perWaveBonus, int wave)
         {
-            if (perWaveBonus <= 0f || wave <= 0)
-                return 0f;
-
-            float normalized = perWaveBonus > 1f ? perWaveBonus * 0.01f : perWaveBonus;
-            return Mathf.Pow(1f + normalized, wave) - 1f;
+            return RunStatModifiers.GetWaveScalingMultiplier(perWaveBonus, wave) - 1f;
         }
 
         private void AddSection(string title)
@@ -352,10 +348,10 @@ namespace ETD.UI
                     return $"+{SmartPercent(cur * 100f)}%";
                 }
 
-                // All stats per wave — exponential, matches GetWaveScalingMultiplier.
+                // All stats per wave — exponential through the configured cap, then linear.
                 case TraitEffectType.AllStatsPerWave:
                 {
-                    float cur = Mathf.Pow(1f + Norm(effectValue), Mathf.Max(0, wave)) - 1f;
+                    float cur = RunStatModifiers.GetWaveScalingMultiplier(effectValue, wave) - 1f;
                     return $"+{SmartPercent(cur * 100f)}%";
                 }
 

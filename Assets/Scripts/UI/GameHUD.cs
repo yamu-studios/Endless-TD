@@ -32,6 +32,9 @@ namespace ETD.UI
         [Header("Wave Timer")]
         [SerializeField] private TMP_Text _prepTimerText;
         [SerializeField] private Button _skipPrepButton;
+        [Tooltip("Scene-authored tactical prep-pause button. Its RectTransform position is never changed at runtime.")]
+        [SerializeField] private Button _tacticalPauseButton;
+        [SerializeField] private TMP_Text _tacticalPauseButtonText;
         [SerializeField] private GameObject _prepTimerPanel;
 
 
@@ -53,8 +56,9 @@ namespace ETD.UI
             _runManager = ServiceLocator.Get<RunManager>();
             _waveManager = ServiceLocator.Get<WaveManager>();
 
-
+            ResolveTacticalPauseButton();
             _skipPrepButton?.onClick.AddListener(OnSkipPrepClicked);
+            _tacticalPauseButton?.onClick.AddListener(OnTacticalPauseClicked);
 
             // Subscribe to events
             EventBus.Subscribe<GoldChangedEvent>(OnGoldChanged);
@@ -64,6 +68,8 @@ namespace ETD.UI
             EventBus.Subscribe<XPGainedEvent>(OnXPChanged);
             EventBus.Subscribe<LevelUpEvent>(OnLevelUp);
             EventBus.Subscribe<MetaCurrencyChangedEvent>(OnMetaCurrencyChanged);
+            EventBus.Subscribe<PrepPhaseStartedEvent>(OnPrepStarted);
+            EventBus.Subscribe<PrepPauseChangedEvent>(OnPrepPauseChanged);
 
             // Initial state
             RefreshAll();
@@ -123,6 +129,39 @@ namespace ETD.UI
             }
         }
 
+        private void ResolveTacticalPauseButton()
+        {
+            // Prefer the Inspector reference. Migration fallback: locate a second
+            // scene-authored button beside Skip without changing its position.
+            if (_tacticalPauseButton == null && _skipPrepButton != null)
+            {
+                var parent = _skipPrepButton.transform.parent;
+                if (parent != null)
+                {
+                    var siblingButtons = parent.GetComponentsInChildren<Button>(true);
+                    for (int i = 0; i < siblingButtons.Length; i++)
+                    {
+                        if (siblingButtons[i] == null || siblingButtons[i] == _skipPrepButton)
+                            continue;
+                        _tacticalPauseButton = siblingButtons[i];
+                        break;
+                    }
+                }
+            }
+
+            if (_tacticalPauseButtonText == null && _tacticalPauseButton != null)
+                _tacticalPauseButtonText = _tacticalPauseButton.GetComponentInChildren<TMP_Text>(true);
+
+            var skipAnimator = _skipPrepButton != null
+                ? _skipPrepButton.GetComponent<SkipPrepButtonAnimator>() : null;
+            var tacticalAnimator = _tacticalPauseButton != null
+                ? _tacticalPauseButton.GetComponent<SkipPrepButtonAnimator>() : null;
+            if (skipAnimator != null && tacticalAnimator != null)
+                tacticalAnimator.SetHiddenPosition(skipAnimator.HiddenPosition);
+
+            RefreshTacticalPauseLabel(_waveManager != null && _waveManager.IsPrepPaused);
+        }
+
       
 
         private void UpdateXPBar(float current, float required)
@@ -136,7 +175,11 @@ namespace ETD.UI
         private void OnGoldChanged(GoldChangedEvent evt) => SetText(_goldText, ETD.Core.NumberFormat.Compact(evt.Current));
         private void OnLivesChanged(LivesChangedEvent evt) => SetText(_livesText, $"{evt.Current}");
         private void OnScoreChanged(ScoreChangedEvent evt) => SetText(_scoreText, ETD.Core.NumberFormat.Compact(evt.Current));
-        private void OnWaveStarted(WaveStartedEvent evt) => SetText(_waveText, $"{evt.WaveNumber}");
+        private void OnWaveStarted(WaveStartedEvent evt)
+        {
+            SetText(_waveText, $"{evt.WaveNumber}");
+            RefreshTacticalPauseLabel(false);
+        }
         private void OnLevelUp(LevelUpEvent evt) => SetText(_levelText, $"Lv {evt.NewLevel}");
         private void OnMetaCurrencyChanged(MetaCurrencyChangedEvent evt) => SetText(_metaCurrencyText, ETD.Core.NumberFormat.Compact(evt.Current));
 
@@ -148,11 +191,29 @@ namespace ETD.UI
         private void OnPrepStarted(PrepPhaseStartedEvent evt)
         {
             if (_prepTimerPanel != null) _prepTimerPanel.SetActive(true);
+            RefreshTacticalPauseLabel(false);
         }
 
         private void OnSkipPrepClicked()
         {
             _runManager?.SkipPrepTime();
+        }
+
+        private void OnTacticalPauseClicked()
+        {
+            _waveManager?.TogglePrepPause();
+        }
+
+        private void OnPrepPauseChanged(PrepPauseChangedEvent evt)
+        {
+            RefreshTacticalPauseLabel(evt.IsPaused);
+        }
+
+        private void RefreshTacticalPauseLabel(bool paused)
+        {
+            SetText(_tacticalPauseButtonText, paused
+                ? LocalizationManager.Get("ui_resume_prep", "Resume")
+                : LocalizationManager.Get("ui_pause_prep", "Pause"));
         }
 
         private void SetText(TMP_Text text, string value)
@@ -170,6 +231,7 @@ namespace ETD.UI
             EventBus.Unsubscribe<LevelUpEvent>(OnLevelUp);
             EventBus.Unsubscribe<MetaCurrencyChangedEvent>(OnMetaCurrencyChanged);
             EventBus.Unsubscribe<PrepPhaseStartedEvent>(OnPrepStarted);
+            EventBus.Unsubscribe<PrepPauseChangedEvent>(OnPrepPauseChanged);
         }
 
       

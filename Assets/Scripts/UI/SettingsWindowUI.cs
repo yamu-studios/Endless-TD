@@ -78,6 +78,8 @@ namespace ETD.UI
 
         [SerializeField] private Toggle _alwaysSkipPrepToggle;
         [SerializeField] private TMP_Text _alwaysSkipPrepLabel;
+        [SerializeField] private Toggle _autoUseGlobalAbilityToggle;
+        [SerializeField] private TMP_Text _autoUseGlobalAbilityLabel;
         [SerializeField] private Toggle _floatingDamageNumbersToggle;
         [SerializeField] private TMP_Text _floatingDamageNumbersLabel;
 
@@ -130,6 +132,7 @@ namespace ETD.UI
 
         private void Awake()
         {
+            EnsureAutoUseGlobalAbilityControl();
             EventBus.Subscribe<LanguageChangedEvent>(OnLanguageChanged);
         }
 
@@ -160,6 +163,13 @@ namespace ETD.UI
 
             if (_alwaysSkipPrepLabel != null)
                 _alwaysSkipPrepLabel.text = LocalizationManager.Get("settings_always_skip_prep", "Always Skip Prep");
+
+            if (_autoUseGlobalAbilityLabel == null && _autoUseGlobalAbilityToggle != null)
+                _autoUseGlobalAbilityLabel = _autoUseGlobalAbilityToggle.GetComponentInChildren<TMP_Text>(true);
+
+            if (_autoUseGlobalAbilityLabel != null)
+                _autoUseGlobalAbilityLabel.text = LocalizationManager.Get(
+                    "settings_auto_use_global_ability", "Automatically Use Global Ability");
 
             if (_floatingDamageNumbersLabel == null && _floatingDamageNumbersToggle != null)
                 _floatingDamageNumbersLabel = _floatingDamageNumbersToggle.GetComponentInChildren<TMP_Text>(true);
@@ -452,6 +462,103 @@ namespace ETD.UI
             SaveSystem.Save(save);
         }
 
+        private void OnAutoUseGlobalAbilityChanged(bool value)
+        {
+            if (_initializing) return;
+
+            var save = SaveSystem.Load();
+            save.AutoUseGlobalAbility = value;
+            SaveSystem.Save(save);
+
+            if (ServiceLocator.TryGet<ETD.Gameplay.SpellManager>(out var spellManager))
+                spellManager.SetAutoCastEnabled(value);
+        }
+
+        private void EnsureAutoUseGlobalAbilityControl()
+        {
+            if (_autoUseGlobalAbilityToggle != null || _alwaysSkipPrepToggle == null)
+                return;
+
+            var sourceRow = _alwaysSkipPrepToggle.transform.parent as RectTransform;
+            if (sourceRow == null)
+                return;
+
+            if (!sourceRow.name.StartsWith("GameplayRow"))
+            {
+                EnsureLegacyAutoUseGlobalAbilityControl(sourceRow);
+                return;
+            }
+
+            var container = sourceRow.parent;
+            int insertIndex = sourceRow.GetSiblingIndex() + 1;
+            const float rowSpacing = 70f;
+
+            for (int i = insertIndex; i < container.childCount; i++)
+            {
+                if (container.GetChild(i) is RectTransform row)
+                    row.anchoredPosition += Vector2.down * rowSpacing;
+            }
+
+            var clone = Instantiate(sourceRow.gameObject, container);
+            clone.name = "GameplayRow-AutoGlobalAbility";
+            clone.transform.SetSiblingIndex(insertIndex);
+            if (clone.transform is RectTransform cloneRect)
+                cloneRect.anchoredPosition = sourceRow.anchoredPosition + Vector2.down * rowSpacing;
+
+            foreach (var localizedText in clone.GetComponentsInChildren<LocalizedText>(true))
+                Destroy(localizedText);
+
+            _autoUseGlobalAbilityToggle = clone.GetComponentInChildren<Toggle>(true);
+            _autoUseGlobalAbilityLabel = clone.GetComponentInChildren<TMP_Text>(true);
+        }
+
+        private void EnsureLegacyAutoUseGlobalAbilityControl(RectTransform container)
+        {
+            var sourceToggleRect = _alwaysSkipPrepToggle.transform as RectTransform;
+            if (sourceToggleRect == null)
+                return;
+
+            RectTransform sourceLabelRect = null;
+            TMP_Text sourceLabel = null;
+            float closestDistance = float.MaxValue;
+            foreach (Transform child in container)
+            {
+                if (child == sourceToggleRect) continue;
+                var label = child.GetComponentInChildren<TMP_Text>(true);
+                if (label == null || child is not RectTransform rect) continue;
+                float distance = Mathf.Abs(rect.anchoredPosition.y - sourceToggleRect.anchoredPosition.y);
+                if (distance >= closestDistance) continue;
+                closestDistance = distance;
+                sourceLabelRect = rect;
+                sourceLabel = label;
+            }
+
+            if (sourceLabelRect == null || sourceLabel == null)
+                return;
+
+            const float rowSpacing = 70f;
+            float sourceY = sourceToggleRect.anchoredPosition.y;
+            foreach (Transform child in container)
+            {
+                if (child is RectTransform rect && rect.anchoredPosition.y < sourceY - 1f)
+                    rect.anchoredPosition += Vector2.down * rowSpacing;
+            }
+
+            var toggleClone = Instantiate(sourceToggleRect.gameObject, container);
+            toggleClone.name = "AutoGlobalAbilityToggle";
+            var toggleRect = toggleClone.transform as RectTransform;
+            toggleRect.anchoredPosition = sourceToggleRect.anchoredPosition + Vector2.down * rowSpacing;
+            _autoUseGlobalAbilityToggle = toggleClone.GetComponent<Toggle>();
+
+            var labelClone = Instantiate(sourceLabelRect.gameObject, container);
+            labelClone.name = "AutoGlobalAbilityLabel";
+            var labelRect = labelClone.transform as RectTransform;
+            labelRect.anchoredPosition = sourceLabelRect.anchoredPosition + Vector2.down * rowSpacing;
+            foreach (var localizedText in labelClone.GetComponentsInChildren<LocalizedText>(true))
+                Destroy(localizedText);
+            _autoUseGlobalAbilityLabel = labelClone.GetComponentInChildren<TMP_Text>(true);
+        }
+
         private void SetupGameplayTab()
         {
             var save = SaveSystem.Load();
@@ -492,6 +599,13 @@ namespace ETD.UI
                 _alwaysSkipPrepToggle.interactable = !isFirstTimePlayer;
                 _alwaysSkipPrepToggle.onValueChanged.RemoveAllListeners();
                 _alwaysSkipPrepToggle.onValueChanged.AddListener(OnAlwaysSkipPrepChanged);
+            }
+
+            if (_autoUseGlobalAbilityToggle != null)
+            {
+                _autoUseGlobalAbilityToggle.SetIsOnWithoutNotify(save.AutoUseGlobalAbility);
+                _autoUseGlobalAbilityToggle.onValueChanged.RemoveAllListeners();
+                _autoUseGlobalAbilityToggle.onValueChanged.AddListener(OnAutoUseGlobalAbilityChanged);
             }
 
             if (_floatingDamageNumbersToggle != null)

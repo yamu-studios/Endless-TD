@@ -25,7 +25,7 @@ namespace ETD.EditorTools
         private bool _infiniteGold;
         private bool _infiniteLives;
         private int _crystalsToAdd = 1000;
-        private const int InfiniteGoldAmount = 99999999;
+        private const int InfiniteGoldAmount = int.MaxValue;
 
         // --- Achievement test state ---
         private string _achApiName = "ACH_FIRST_TRAIT";
@@ -40,18 +40,23 @@ namespace ETD.EditorTools
         public static void Open() => GetWindow<ETDDevToolsWindow>("ETD Dev Tools");
 
         private void OnEnable() => EditorApplication.update += OnEditorUpdate;
-        private void OnDisable() => EditorApplication.update -= OnEditorUpdate;
+        private void OnDisable()
+        {
+            EditorApplication.update -= OnEditorUpdate;
+            if (Application.isPlaying && ServiceLocator.TryGet<RunManager>(out var rm))
+                rm.DebugInfiniteGold = false;
+        }
 
         // Keeps the infinite toggles enforced every editor tick during play mode.
         private void OnEditorUpdate()
         {
             if (!Application.isPlaying) return;
-            if (!_infiniteGold && !_infiniteLives) return;
             if (!ServiceLocator.TryGet<RunManager>(out var rm) || rm.RunData == null) return;
 
             var run = rm.RunData;
+            rm.DebugInfiniteGold = _infiniteGold;
 
-            if (_infiniteGold && run.Gold < InfiniteGoldAmount / 2)
+            if (_infiniteGold && run.Gold != InfiniteGoldAmount)
             {
                 run.Gold = InfiniteGoldAmount;
                 EventBus.Publish(new GoldChangedEvent { Current = run.Gold, Delta = 0 });
@@ -102,7 +107,7 @@ namespace ETD.EditorTools
             using (new EditorGUI.DisabledScope(!Application.isPlaying))
             {
                 _infiniteGold = EditorGUILayout.ToggleLeft(
-                    $"Infinite Gold (kept at {InfiniteGoldAmount:N0})", _infiniteGold);
+                    "Infinite Gold (upgrade spending bypassed)", _infiniteGold);
                 _infiniteLives = EditorGUILayout.ToggleLeft(
                     "Infinite Lives (kept at MaxLives)", _infiniteLives);
             }

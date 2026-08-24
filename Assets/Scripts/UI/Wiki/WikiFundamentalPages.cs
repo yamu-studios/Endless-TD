@@ -312,13 +312,6 @@ namespace ETD.UI.Wiki
                        WikiFormat.Multiplier(GameConstants.ELITE_GOLD_MULTIPLIER));
             income.Row(LocalizationManager.Get("wiki_econ_boss_gold", "Boss kill"),
                        WikiFormat.Multiplier(GameConstants.BOSS_GOLD_MULTIPLIER));
-            income.Row(LocalizationManager.Get("wiki_econ_skip", "Skipping preparation"),
-                       LocalizationManager.GetFormat("wiki_econ_skip_val",
-                           "{0} gold per second left x (wave + 1)",
-                           WikiFormat.Number(GameConstants.SKIP_REWARD_GOLD_PER_SECOND, 0)),
-                       LocalizationManager.GetFormat("wiki_econ_skip_note",
-                           "Preparation is {0}s. Skipping is a genuine income source, not only a way to save time — and it scales with the wave.",
-                           WikiFormat.Number(GameConstants.BASE_PREP_TIME, 0)));
             sections.Add(income);
 
             var levels = new WikiSection(

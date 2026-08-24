@@ -17,12 +17,14 @@ namespace ETD.Gameplay
         private SpellData _selectedSpell;
         private float _cooldownRemaining;
         private int _upgradeLevel;
+        private bool _autoCastEnabled;
 
         public SpellData SelectedSpell => _selectedSpell;
         public float CooldownRemaining => _cooldownRemaining;
         public float CooldownDuration => _selectedSpell != null
             ? _selectedSpell.GetEffectiveCooldown(_upgradeLevel) : 0f;
         public bool IsReady => _selectedSpell != null && _cooldownRemaining <= 0f;
+        public bool AutoCastEnabled => _autoCastEnabled;
 
         private void Awake()
         {
@@ -42,6 +44,7 @@ namespace ETD.Gameplay
                 ? _database.GetSpell(save.SelectedSpellId)
                 : null;
             _upgradeLevel = save != null ? Mathf.Max(0, save.ShopSpellUpgradeLevel) : 0;
+            _autoCastEnabled = save != null && save.AutoUseGlobalAbility;
             _cooldownRemaining = 0f;
 
             DeactivateAllSceneVFX();
@@ -89,6 +92,21 @@ namespace ETD.Gameplay
         {
             if (_cooldownRemaining > 0f)
                 _cooldownRemaining = Mathf.Max(0f, _cooldownRemaining - Time.deltaTime);
+
+            if (!_autoCastEnabled || !IsReady
+                || GameManager.Instance == null
+                || GameManager.Instance.CurrentState != GameState.WaveActive)
+                return;
+
+            // Wait for a live enemy so damage/freeze abilities are not spent on an empty map.
+            if (ServiceLocator.TryGet<ETD.Enemies.EnemyManager>(out var enemies)
+                && enemies.ActiveCount > 0)
+                TryCast();
+        }
+
+        public void SetAutoCastEnabled(bool enabled)
+        {
+            _autoCastEnabled = enabled;
         }
 
         public bool TryCast()

@@ -30,6 +30,11 @@ namespace ETD.Gameplay
         private RunData _runData;
         public RunData RunData => _runData;
 
+#if UNITY_EDITOR
+        /// <summary>Editor-only economy bypass controlled by the ETD Dev Tools window.</summary>
+        public bool DebugInfiniteGold { get; set; }
+#endif
+
         private RunStatModifiers _statModifiers;
         public RunStatModifiers StatModifiers => _statModifiers;
 
@@ -176,7 +181,6 @@ namespace ETD.Gameplay
             EventBus.Subscribe<TurretSoldEvent>(OnTurretSold);
             EventBus.Subscribe<TurretUpgradedEvent>(OnTurretUpgraded);
             EventBus.Subscribe<WaveStartedEvent>(OnWaveStarted);
-            EventBus.Subscribe<PrepPhaseSkipedEvent>(OnPrepSkipped);
 
             // Start first prep phase
             EventBus.Publish(new GameStartedEvent());
@@ -276,11 +280,28 @@ namespace ETD.Gameplay
 
         public bool SpendGold(int amount)
         {
+            if (amount <= 0) return false;
+
+#if UNITY_EDITOR
+            if (DebugInfiniteGold)
+            {
+                RecordGoldSpent(amount);
+                return true;
+            }
+#endif
+
             if (_runData.Gold < amount) return false;
             _runData.Gold -= amount;
-            _runData.TotalGoldSpent += amount;
+            RecordGoldSpent(amount);
             EventBus.Publish(new GoldChangedEvent { Current = _runData.Gold, Delta = -amount });
             return true;
+        }
+
+        private void RecordGoldSpent(int amount)
+        {
+            _runData.TotalGoldSpent = (int)System.Math.Min(
+                int.MaxValue,
+                (long)_runData.TotalGoldSpent + amount);
         }
 
         public void AddGold(int amount)
@@ -292,16 +313,35 @@ namespace ETD.Gameplay
             float permGoldMult = 1f + GetActivePermanentBonus(2);
             mult *= permGoldMult;
 
-            int modified = Mathf.RoundToInt(amount * mult);
-            _runData.Gold += modified;
-            _runData.TotalGoldEarned += modified;
-            EventBus.Publish(new GoldChangedEvent { Current = _runData.Gold, Delta = modified });
+            double modifiedValue = amount * (double)mult;
+            int modified = modifiedValue >= int.MaxValue
+                ? int.MaxValue
+                : modifiedValue > 0d
+                    ? (int)System.Math.Round(modifiedValue, System.MidpointRounding.ToEven)
+                    : 0;
+
+            AddGoldInternal(modified, countAsEarned: true);
         }
 
-        void OnPrepSkipped(PrepPhaseSkipedEvent evt)
+        private void AddGoldInternal(int amount, bool countAsEarned)
         {
-            AddGold(evt.Reward);
+            if (amount <= 0) return;
+
+            // Normalize legacy snapshots that may already contain overflowed gold.
+            int previousGold = System.Math.Max(0, _runData.Gold);
+            _runData.Gold = (int)System.Math.Min(int.MaxValue, (long)previousGold + amount);
+            int added = _runData.Gold - previousGold;
+
+            if (countAsEarned)
+            {
+                _runData.TotalGoldEarned = (int)System.Math.Min(
+                    int.MaxValue,
+                    (long)_runData.TotalGoldEarned + added);
+            }
+
+            EventBus.Publish(new GoldChangedEvent { Current = _runData.Gold, Delta = added });
         }
+
         // =================================================================
         // XP & LEVELING
         // =================================================================
@@ -868,7 +908,8 @@ namespace ETD.Gameplay
 
         private void OnTurretSold(TurretSoldEvent evt)
         {
-            AddGold(evt.RefundAmount);
+            // Refund invested gold directly. Income multipliers must not make selling profitable.
+            AddGoldInternal(evt.RefundAmount, countAsEarned: false);
         }
 
         private void OnTurretUpgraded(TurretUpgradedEvent evt)
@@ -893,9 +934,7 @@ namespace ETD.Gameplay
 
         public void SkipPrepTime()
         {
-            float reward = _waveManager.SkipPrepTime();
-
-            AddGold(Mathf.RoundToInt(reward));
+            _waveManager.SkipPrepTime();
         }
 
         /// <summary>
@@ -922,7 +961,6 @@ namespace ETD.Gameplay
             EventBus.Unsubscribe<TurretSoldEvent>(OnTurretSold);
             EventBus.Unsubscribe<TurretUpgradedEvent>(OnTurretUpgraded);
             EventBus.Unsubscribe<WaveStartedEvent>(OnWaveStarted);
-            EventBus.Unsubscribe<PrepPhaseSkipedEvent>(OnPrepSkipped);
             ServiceLocator.Unregister<RunManager>();
         }
 

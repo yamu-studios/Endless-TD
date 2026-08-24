@@ -45,6 +45,7 @@ namespace ETD.Waves
 
         private int _currentWave;
         private float _prepTimeRemaining;
+        private bool _isPrepPaused;
         private bool _isSpawning;
         private Coroutine _spawnCoroutine;
 
@@ -55,6 +56,7 @@ namespace ETD.Waves
 
         public int CurrentWave => _currentWave;
         public float PrepTimeRemaining => _prepTimeRemaining;
+        public bool IsPrepPaused => _isPrepPaused;
         public bool IsSpawning => _isSpawning;
 
         // =================================================================
@@ -83,19 +85,7 @@ namespace ETD.Waves
         public void StartPrepPhase()
         {
             _prepTimeRemaining = GameConstants.BASE_PREP_TIME;
-
-            //var save = SaveSystem.Load();
-            //if (save.AlwaysSkipPrep)
-            //{
-            //    float reward = SkipPrepTime();
-            //    EventBus.Publish(new GoldChangedEvent
-            //    {
-            //        Delta = Mathf.RoundToInt(reward),
-            //        Current = 0 // RunManager will handle gold add
-            //    });
-            //    GameManager.Instance.SetState(GameState.WaveActive);
-            //    StartNextWave();
-            //}
+            SetPrepPaused(false);
 
             EventBus.Publish(new PrepPhaseStartedEvent { Duration = _prepTimeRemaining });
 
@@ -103,10 +93,7 @@ namespace ETD.Waves
             var save = SaveSystem.Load();
             if (save.AlwaysSkipPrep)
             {
-                float reward = SkipPrepTime();
-                // Give the gold reward via RunManager
-                EventBus.Publish(new PrepPhaseSkipedEvent { Reward = Mathf.RoundToInt(reward) });
-
+                SkipPrepTime();
                 GameManager.Instance.SetState(GameState.WaveActive);
                 StartNextWave();
                 return;
@@ -114,18 +101,33 @@ namespace ETD.Waves
             GameManager.Instance.SetState(GameState.Preparation);
         }
 
-        public float SkipPrepTime()
+        public void SkipPrepTime()
         {
-            
-            float reward = _prepTimeRemaining * GameConstants.SKIP_REWARD_GOLD_PER_SECOND*(CurrentWave+1);
-            Debug.Log("Reward : " + reward);
+            SetPrepPaused(false);
             _prepTimeRemaining = 0f;
-            return reward;
+        }
+
+        public bool TogglePrepPause()
+        {
+            if (GameManager.Instance == null || GameManager.Instance.CurrentState != GameState.Preparation)
+                return false;
+
+            SetPrepPaused(!_isPrepPaused);
+            return _isPrepPaused;
+        }
+
+        private void SetPrepPaused(bool paused)
+        {
+            if (_isPrepPaused == paused)
+                return;
+
+            _isPrepPaused = paused;
+            EventBus.Publish(new PrepPauseChangedEvent { IsPaused = paused });
         }
 
         private void Update()
         {
-            if (GameManager.Instance.CurrentState == GameState.Preparation)
+            if (GameManager.Instance.CurrentState == GameState.Preparation && !_isPrepPaused)
             {
                 _prepTimeRemaining -= Time.deltaTime;
                 if (_prepTimeRemaining <= 0f)

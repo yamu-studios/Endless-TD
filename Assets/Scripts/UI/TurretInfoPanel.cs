@@ -161,12 +161,19 @@ namespace ETD.UI
         private void OnTurretSelected(TurretSelectedEvent evt)
         {
             ResolveServices();
+
+            if (_evolvePanel != null) _evolvePanel.SetActive(false);
+            if (_evolveTier2Panel != null) _evolveTier2Panel.SetActive(false);
+
             _selectedTurretId = evt.TurretId;
             _selectedTurret = _turretManager?.GetTurret(evt.TurretId);
 
             if (_selectedTurret == null) return;
             _panel.SetActive(true);
             RefreshInfo();
+
+            if (_selectedTurret.IsEvolveChoicePending)
+                ShowEvolveChoiceForSelectedTurret();
         }
         /// <summary>
         /// Close button handler. Publishes the same deselect event the input
@@ -278,6 +285,14 @@ namespace ETD.UI
             if (_selectedTurret == null || _selectedTurret.InstanceId != evt.TurretId)
                 return;
 
+            ShowEvolveChoiceForSelectedTurret();
+        }
+
+        private void ShowEvolveChoiceForSelectedTurret()
+        {
+            if (!ResolveSelectedTurret() || !_selectedTurret.IsEvolveChoicePending)
+                return;
+
             var data = _selectedTurret.Data;
             if (data == null)
                 return;
@@ -289,10 +304,16 @@ namespace ETD.UI
             bool hasPathB = data.PathB != null;
 
             if (_evolvePathAButton != null)
+            {
                 _evolvePathAButton.gameObject.SetActive(hasPathA);
+                _evolvePathAButton.interactable = hasPathA;
+            }
 
             if (_evolvePathBButton != null)
+            {
                 _evolvePathBButton.gameObject.SetActive(hasPathB);
+                _evolvePathBButton.interactable = hasPathB;
+            }
 
             if (hasPathA)
             {
@@ -598,23 +619,22 @@ namespace ETD.UI
 
         private void OnEvolveClicked(int path)
         {
-
-            if (!ResolveSelectedTurret()) return;
+            if (!ResolveSelectedTurret() || !_selectedTurret.IsEvolveChoicePending) return;
 
             if (ServiceLocator.TryGet<TurretManager>(out var mgr))
             {
                 var evolved = mgr.EvolveTurret(_selectedTurret.InstanceId, path);
-                if (evolved != null)
-                {
-                    _selectedTurret = evolved;
-                    _selectedTurretId = evolved.InstanceId;
-                }
+                if (evolved == null || !evolved.IsEvolved) return;
+
+                _selectedTurret = evolved;
+                _selectedTurretId = evolved.InstanceId;
             }
+            else return;
 
             if (_evolvePanel != null) _evolvePanel.SetActive(false);
 
             // Restore whatever state we were in before evolve (Prep OR WaveActive)
-            GameManager.Instance.PopModalState();
+            GameManager.Instance?.PopModalState();
             RefreshInfo();
         }
 

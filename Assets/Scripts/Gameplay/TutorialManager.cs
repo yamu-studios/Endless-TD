@@ -147,8 +147,8 @@ namespace ETD.Gameplay
 
                 case TutorialStepId.PrepSkip:
                     _ui.Show(
-                        title: "Skip Prep for Gold!",
-                        body:  "Between waves you get prep time. Click 'Skip' early to earn bonus gold — the more time remaining, the bigger the reward!",
+                        title: "Preparation Controls",
+                        body:  "Between waves, pause the prep countdown to build without time pressure, resume when ready, or click 'Skip' to start immediately.",
                         target: _ui.SkipButtonTarget,
                         canSkip: true,
                         onNext: null);

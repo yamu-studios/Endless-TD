@@ -103,6 +103,9 @@ namespace ETD.Data
         /// <summary>An elite wave gains one extra elite every this many waves.</summary>
         public const int EliteCountWaveStep = 15;
 
+        /// <summary>Per-wave player bonuses compound through this wave, then grow linearly.</summary>
+        public const int PlayerWaveScalingExponentialCap = 500;
+
         // --- Freeze / Shock (EnemyController.ApplyStatus) ---
 
         /// <summary>

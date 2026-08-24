@@ -549,7 +549,7 @@ namespace ETD.Gameplay
             return total;
         }
 
-        private float GetWaveScalingMultiplier(float perWaveBonus, int wave)
+        public static float GetWaveScalingMultiplier(float perWaveBonus, int wave)
         {
             if (perWaveBonus <= 0f || wave <= 0)
                 return 1f;
@@ -557,10 +557,17 @@ namespace ETD.Gameplay
             // Backward-compatible percent handling:
             // 0.005 = +0.5% per wave, 0.5 = +50% per wave, 5 = +5% per wave.
             float normalized = NormalizePercentLikeValue(perWaveBonus);
-            return Mathf.Pow(1f + normalized, wave);
+            int exponentialWaves = Mathf.Min(wave, BalanceConstants.PlayerWaveScalingExponentialCap);
+            double multiplier = System.Math.Pow(1d + normalized, exponentialWaves);
+
+            int linearWaves = wave - exponentialWaves;
+            if (linearWaves > 0)
+                multiplier *= 1d + normalized * linearWaves;
+
+            return multiplier >= float.MaxValue ? float.MaxValue : (float)multiplier;
         }
 
-        private float NormalizePercentLikeValue(float value)
+        private static float NormalizePercentLikeValue(float value)
         {
             return value > 1f ? value * 0.01f : value;
         }

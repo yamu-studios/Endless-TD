@@ -2701,21 +2701,27 @@ namespace ETD.Turrets
 
         public int GetUpgradeCost()
         {
-            float cost = Data.BaseUpgradeCost * Mathf.Pow(Data.UpgradeCostMultiplier, Level - 1);
+            // Use double precision and clamp before converting. An exponentially-grown
+            // float beyond Int32.MaxValue used to wrap and become a permanent 1-gold cost.
+            double cost = Data.BaseUpgradeCost * System.Math.Pow(Data.UpgradeCostMultiplier, Level - 1);
 
             // Dynamic tile upgrade cost modifier
             if (_dynamicTile != null)
             {
                 if (_dynamicTile.PrimaryEffect.Stat == TurretStatModifier.StatType.UpgradeCost)
-                    cost *= (1f + _dynamicTile.PrimaryEffect.Value);
+                    cost *= (1d + _dynamicTile.PrimaryEffect.Value);
                 if (_dynamicTile.Tradeoff.Stat == TurretStatModifier.StatType.UpgradeCost)
-                    cost *= (1f + _dynamicTile.Tradeoff.Value);
+                    cost *= (1d + _dynamicTile.Tradeoff.Value);
             }
 
             if (_statModifiers != null)
-                cost *= Mathf.Max(0f, _statModifiers.GetUpgradeCostMultiplier());
+                cost *= System.Math.Max(0d, _statModifiers.GetUpgradeCostMultiplier());
 
-            return Mathf.Max(1, Mathf.RoundToInt(cost));
+            if (!(cost > 1d))
+                return 1;
+            if (cost >= int.MaxValue)
+                return int.MaxValue;
+            return (int)System.Math.Round(cost, System.MidpointRounding.ToEven);
         }
 
         /// <summary>
@@ -2736,7 +2742,9 @@ namespace ETD.Turrets
             if (Level >= TutorialGates.TurretLevelCap)
                 return;
 
-            TotalGoldInvested += GetUpgradeCost();
+            TotalGoldInvested = (int)System.Math.Min(
+                int.MaxValue,
+                (long)TotalGoldInvested + GetUpgradeCost());
             Level++;
             RecalculateStats();
             ApplyUpgradeVisualScale(true);

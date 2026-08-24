@@ -92,6 +92,9 @@ namespace ETD.Core
         // Always skip prep phase option
         public bool AlwaysSkipPrep = false;
 
+        // Automatically cast the selected global ability once ready during a wave.
+        public bool AutoUseGlobalAbility = false;
+
         // Floating damage numbers option. Initializer flag lets old saves migrate to enabled by default.
         public bool FloatingDamageNumbersPreferenceInitialized = false;
         public bool FloatingDamageNumbersEnabled = true;
