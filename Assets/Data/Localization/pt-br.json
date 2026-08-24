@@ -1,4 +1,8 @@
 {
+  "wiki_waves_size_body_softcap": "Cada onda gasta um orçamento em inimigos. O orçamento cresce de forma linear e quadrática até a onda {0}, depois passa para um crescimento linear controlado para manter jogáveis as ondas de quatro dígitos.",
+  "wiki_waves_budget_softcap": "Limite suave das ondas avançadas",
+  "wiki_waves_budget_softcap_val": "a partir da onda {0}: +{1} de orçamento por onda",
+  "wiki_waves_speed_some_capped": "A maioria dos inimigos não acelera com as ondas. Alguns — principalmente chefes — ganham até {0} por onda até a onda {1}. Depois disso, a velocidade de movimento não aumenta mais, preservando o valor das lentidões no fim da partida.",
   "ui_level_up": "SUBIU DE NÍVEL!",
   "ui_level": "Nível",
   "ui_reroll": "sortear novamente",

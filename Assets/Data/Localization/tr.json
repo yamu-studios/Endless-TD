@@ -1,4 +1,8 @@
 {
+  "wiki_waves_size_body_softcap": "Her dalga düşmanlar için bir bütçe harcar. Bütçe {0}. dalgaya kadar hem doğrusal hem karesel büyür, ardından dört haneli dalgaların oynanabilir kalması için kontrollü doğrusal büyümeye geçer.",
+  "wiki_waves_budget_softcap": "Geç dalga yumuşak sınırı",
+  "wiki_waves_budget_softcap_val": "{0}. dalgadan itibaren: dalga başına +{1} bütçe",
+  "wiki_waves_speed_some_capped": "Düşmanların çoğu dalgalar ilerledikçe hiç hızlanmaz. Birkaçı — çoğunlukla boss'lar — {1}. dalgaya kadar dalga başına en fazla {0} kazanır. Bundan sonra hareket hızları artmaz; böylece yavaşlatmalar geç oyundaki değerini korur.",
   "ui_level_up": "SEVİYE ATLADIN!",
   "ui_level": "Seviye",
   "ui_reroll": "yeniden çek",

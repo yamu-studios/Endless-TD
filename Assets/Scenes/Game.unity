@@ -22636,6 +22636,8 @@ MonoBehaviour:
   _baseBudget: 50
   _budgetPerWave: 12
   _budgetQuadraticScale: 0.3
+  _budgetSoftCapWave: 700
+  _budgetPerWaveAfterSoftCap: 200
   _baseSpawnInterval: 0.6
   _spawnIntervalReduction: 0.005
   _minSpawnInterval: 0.2

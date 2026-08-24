@@ -1,4 +1,8 @@
 {
+  "wiki_waves_size_body_softcap": "Jede Welle gibt ein Budget für Gegner aus. Das Budget wächst bis Welle {0} linear und quadratisch und wechselt danach zu kontrolliertem linearem Wachstum, damit vierstellige Wellen spielbar bleiben.",
+  "wiki_waves_budget_softcap": "Sanfte Obergrenze für späte Wellen",
+  "wiki_waves_budget_softcap_val": "ab Welle {0}: +{1} Budget pro Welle",
+  "wiki_waves_speed_some_capped": "Die meisten Gegner werden mit den Wellen nicht schneller. Einige wenige — hauptsächlich Bosse — erhalten bis Welle {1} bis zu {0} pro Welle. Danach steigt ihre Bewegungsgeschwindigkeit nicht weiter, sodass Verlangsamungen im späten Spiel wertvoll bleiben.",
   "ui_level_up": "LEVEL AUF!",
   "ui_level": "Stufe",
   "ui_reroll": "neu ziehen",

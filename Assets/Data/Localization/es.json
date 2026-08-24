@@ -1,4 +1,8 @@
 {
+  "wiki_waves_size_body_softcap": "Cada oleada gasta un presupuesto en enemigos. El presupuesto crece de forma lineal y cuadrática hasta la oleada {0}; después pasa a un crecimiento lineal controlado para que las oleadas de cuatro cifras sigan siendo jugables.",
+  "wiki_waves_budget_softcap": "Límite suave de oleadas tardías",
+  "wiki_waves_budget_softcap_val": "desde la oleada {0}: +{1} de presupuesto por oleada",
+  "wiki_waves_speed_some_capped": "La mayoría de los enemigos no acelera con las oleadas. Unos pocos —principalmente los jefes— ganan hasta {0} por oleada hasta la oleada {1}. Después su velocidad de movimiento deja de aumentar, por lo que las ralentizaciones conservan su valor al final de la partida.",
   "ui_level_up": "¡SUBES DE NIVEL!",
   "ui_level": "Nivel",
   "ui_reroll": "volver a tirar",

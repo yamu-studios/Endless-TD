@@ -1,4 +1,8 @@
 {
+  "wiki_waves_size_body_softcap": "Elke golf besteedt een budget aan vijanden. Het budget groeit lineair en kwadratisch tot golf {0}, en schakelt daarna over op beheerste lineaire groei zodat golven met vier cijfers speelbaar blijven.",
+  "wiki_waves_budget_softcap": "Zachte limiet voor late golven",
+  "wiki_waves_budget_softcap_val": "vanaf golf {0}: +{1} budget per golf",
+  "wiki_waves_speed_some_capped": "De meeste vijanden worden niet sneller naarmate de golven vorderen. Enkele — vooral bazen — krijgen tot golf {1} maximaal {0} per golf. Daarna stijgt hun bewegingssnelheid niet meer, zodat vertragingen laat in de run waardevol blijven.",
   "ui_level_up": "LEVEL OMHOOG!",
   "ui_level": "Level",
   "ui_reroll": "opnieuw trekken",

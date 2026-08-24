@@ -195,7 +195,8 @@ namespace ETD.Data
         public float GetScaledSpeed(int waveNumber)
         {
             int safeWave = Mathf.Max(0, waveNumber);
-            double speed = Math.Max(0.01, MoveSpeed) * Math.Pow(Math.Max(0.0001, SpeedScalePerWave), safeWave);
+            int scalingWave = Math.Min(safeWave, BalanceConstants.EnemySpeedScalingWaveCap);
+            double speed = Math.Max(0.01, MoveSpeed) * Math.Pow(Math.Max(0.0001, SpeedScalePerWave), scalingWave);
             return ClampFiniteToFloat(speed, 0.01f, GetSafeSpeedCap());
         }
 

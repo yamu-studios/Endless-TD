@@ -77,16 +77,22 @@ namespace ETD.UI.Wiki
 
             var composition = new WikiSection(
                 LocalizationManager.Get("wiki_waves_size_heading", "Wave size"),
-                LocalizationManager.Get("wiki_waves_size_body",
+                LocalizationManager.GetFormat("wiki_waves_size_body_softcap",
                     "Each wave spends a budget on enemies. The budget grows both linearly and " +
-                    "quadratically, so later waves are not just tougher one at a time — there " +
-                    "are far more of them, arriving faster."));
+                    "quadratically through wave {0}, then switches to controlled linear growth " +
+                    "so four-digit waves remain playable.",
+                    BalanceConstants.WaveBudgetSoftCapWave));
             composition.Row(LocalizationManager.Get("wiki_waves_budget_base", "Starting budget"),
                             BalanceConstants.WaveBaseBudget.ToString());
             composition.Row(LocalizationManager.Get("wiki_waves_budget_linear", "Budget per wave"),
                             "+" + BalanceConstants.WaveBudgetPerWave);
             composition.Row(LocalizationManager.Get("wiki_waves_budget_quad", "Plus, per wave squared"),
                             "+" + WikiFormat.Number(BalanceConstants.WaveBudgetQuadraticScale, 2));
+            composition.Row(LocalizationManager.Get("wiki_waves_budget_softcap", "Late-wave soft cap"),
+                            LocalizationManager.GetFormat("wiki_waves_budget_softcap_val",
+                                "from wave {0}: +{1} budget per wave",
+                                BalanceConstants.WaveBudgetSoftCapWave,
+                                BalanceConstants.WaveBudgetPerWaveAfterSoftCap));
             composition.Row(LocalizationManager.Get("wiki_waves_spawn_interval", "Spawn interval"),
                             WikiFormat.Seconds(BalanceConstants.WaveBaseSpawnInterval),
                             LocalizationManager.GetFormat("wiki_waves_spawn_interval_note",
@@ -156,11 +162,12 @@ namespace ETD.UI.Wiki
                     ? LocalizationManager.Get("wiki_waves_speed_none",
                         "Enemies do not get faster as the waves go on — only tougher and more " +
                         "numerous. A slow bought at wave 10 is worth exactly as much at wave 100.")
-                    : LocalizationManager.GetFormat("wiki_waves_speed_some",
+                    : LocalizationManager.GetFormat("wiki_waves_speed_some_capped",
                         "Most enemies do not speed up at all as the waves go on. A few — bosses " +
-                        "mainly — gain up to {0} per wave, which is nothing next to how fast " +
-                        "health climbs. Slows keep their value for the whole run.",
-                        WikiFormat.PercentSigned(maxRate, 1)));
+                        "mainly — gain up to {0} per wave until wave {1}. Their movement speed " +
+                        "does not increase after that, so slows retain their late-run value.",
+                        WikiFormat.PercentSigned(maxRate, 1),
+                        BalanceConstants.EnemySpeedScalingWaveCap));
 
             sections.Add(section);
         }

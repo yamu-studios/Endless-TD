@@ -1,4 +1,8 @@
 {
+  "wiki_waves_size_body_softcap": "Varje våg spenderar en budget på fiender. Budgeten växer linjärt och kvadratiskt till våg {0}, och övergår sedan till kontrollerad linjär tillväxt så att fyrsiffriga vågor förblir spelbara.",
+  "wiki_waves_budget_softcap": "Mjuk gräns för sena vågor",
+  "wiki_waves_budget_softcap_val": "från våg {0}: +{1} budget per våg",
+  "wiki_waves_speed_some_capped": "De flesta fiender blir inte snabbare när vågorna fortskrider. Några få — främst bossar — får upp till {0} per våg fram till våg {1}. Därefter ökar deras rörelsehastighet inte mer, så saktningar behåller sitt värde sent i rundan.",
   "ui_level_up": "NIVÅ UPP!",
   "ui_level": "Nivå",
   "ui_reroll": "dra om",

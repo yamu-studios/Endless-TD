@@ -1,4 +1,8 @@
 {
+  "wiki_waves_size_body_softcap": "Każda fala wydaje budżet na wrogów. Budżet rośnie liniowo i kwadratowo do fali {0}, a następnie przechodzi na kontrolowany wzrost liniowy, aby czterocyfrowe fale pozostały grywalne.",
+  "wiki_waves_budget_softcap": "Miękki limit późnych fal",
+  "wiki_waves_budget_softcap_val": "od fali {0}: +{1} budżetu na falę",
+  "wiki_waves_speed_some_capped": "Większość wrogów nie przyspiesza wraz z falami. Nieliczni — głównie bossowie — zyskują do {0} na falę aż do fali {1}. Później ich prędkość ruchu już nie rośnie, więc spowolnienia zachowują wartość w późnej fazie gry.",
   "ui_level_up": "AWANS!",
   "ui_level": "Poziom",
   "ui_reroll": "losuj ponownie",

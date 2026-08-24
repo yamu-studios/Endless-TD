@@ -1,4 +1,8 @@
 {
+  "wiki_waves_size_body_softcap": "Ogni ondata spende un budget per i nemici. Il budget cresce in modo lineare e quadratico fino all'ondata {0}, poi passa a una crescita lineare controllata per mantenere giocabili le ondate a quattro cifre.",
+  "wiki_waves_budget_softcap": "Limite morbido delle ondate avanzate",
+  "wiki_waves_budget_softcap_val": "dall'ondata {0}: +{1} budget per ondata",
+  "wiki_waves_speed_some_capped": "La maggior parte dei nemici non accelera con le ondate. Alcuni — soprattutto i boss — guadagnano fino a {0} per ondata fino all'ondata {1}. Dopo quel punto la loro velocità di movimento non aumenta più, quindi i rallentamenti mantengono valore nel finale.",
   "ui_level_up": "AUMENTO DI LIVELLO!",
   "ui_level": "Livello",
   "ui_reroll": "rilancia",

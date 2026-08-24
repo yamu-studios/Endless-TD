@@ -71,10 +71,25 @@ namespace ETD.Data
         public const int WaveBaseBudget = 50;
 
         /// <summary>Linear part of the per-wave spawn budget growth.</summary>
-        public const int WaveBudgetPerWave = 8;
+        public const int WaveBudgetPerWave = 12;
 
         /// <summary>Quadratic part of the budget growth: budget += wave^2 * this.</summary>
         public const float WaveBudgetQuadraticScale = 0.3f;
+
+        /// <summary>
+        /// The quadratic enemy-count curve ends here. Past this wave, budget grows by
+        /// WaveBudgetPerWaveAfterSoftCap instead, keeping four-digit waves playable.
+        /// </summary>
+        public const int WaveBudgetSoftCapWave = 700;
+
+        /// <summary>Linear budget added per wave after WaveBudgetSoftCapWave.</summary>
+        public const int WaveBudgetPerWaveAfterSoftCap = 200;
+
+        /// <summary>
+        /// Enemies with per-wave movement scaling stop gaining speed here. Health and
+        /// wave composition continue scaling normally.
+        /// </summary>
+        public const int EnemySpeedScalingWaveCap = 800;
 
         /// <summary>Seconds between spawns at wave 0.</summary>
         public const float WaveBaseSpawnInterval = 0.6f;

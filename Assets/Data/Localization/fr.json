@@ -1,4 +1,8 @@
 {
+  "wiki_waves_size_body_softcap": "Chaque vague dépense un budget en ennemis. Le budget augmente de façon linéaire et quadratique jusqu'à la vague {0}, puis passe à une croissance linéaire contrôlée afin que les vagues à quatre chiffres restent jouables.",
+  "wiki_waves_budget_softcap": "Plafond progressif des vagues tardives",
+  "wiki_waves_budget_softcap_val": "à partir de la vague {0} : +{1} de budget par vague",
+  "wiki_waves_speed_some_capped": "La plupart des ennemis n'accélèrent pas avec les vagues. Quelques-uns — surtout les boss — gagnent jusqu'à {0} par vague jusqu'à la vague {1}. Leur vitesse de déplacement n'augmente plus ensuite, ce qui préserve la valeur des ralentissements en fin de partie.",
   "ui_level_up": "NIVEAU SUPÉRIEUR !",
   "ui_level": "Niveau",
   "ui_reroll": "relancer",

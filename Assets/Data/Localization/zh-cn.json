@@ -1,4 +1,8 @@
 {
+  "wiki_waves_size_body_softcap": "每一波都会花费预算来生成敌人。预算在第 {0} 波之前同时按线性和平方增长，之后改为受控的线性增长，让四位数波次仍可游玩。",
+  "wiki_waves_budget_softcap": "后期波次软上限",
+  "wiki_waves_budget_softcap_val": "从第 {0} 波起：每波预算 +{1}",
+  "wiki_waves_speed_some_capped": "大多数敌人不会随波次推进而加速。少数敌人——主要是首领——在第 {1} 波之前每波最多获得 {0}。此后其移动速度不再增加，因此减速效果在后期仍有价值。",
   "ui_level_up": "升级！",
   "ui_level": "等级",
   "ui_reroll": "重抽",

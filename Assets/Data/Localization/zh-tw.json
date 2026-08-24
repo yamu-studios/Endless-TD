@@ -1,4 +1,8 @@
 {
+  "wiki_waves_size_body_softcap": "每一波都會花費預算來生成敵人。預算在第 {0} 波之前同時按線性與平方成長，之後改為受控的線性成長，讓四位數波次仍可遊玩。",
+  "wiki_waves_budget_softcap": "後期波次軟上限",
+  "wiki_waves_budget_softcap_val": "從第 {0} 波起：每波預算 +{1}",
+  "wiki_waves_speed_some_capped": "大多數敵人不會隨波次推進而加速。少數敵人——主要是首領——在第 {1} 波之前每波最多獲得 {0}。此後其移動速度不再增加，因此減速效果在後期仍有價值。",
   "ui_level_up": "升級！",
   "ui_level": "等級",
   "ui_reroll": "重抽",

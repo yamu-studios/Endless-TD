@@ -23,6 +23,8 @@ namespace ETD.Waves
         [SerializeField] private int _baseBudget = BalanceConstants.WaveBaseBudget;
         [SerializeField] private int _budgetPerWave = BalanceConstants.WaveBudgetPerWave;
         [SerializeField] private float _budgetQuadraticScale = BalanceConstants.WaveBudgetQuadraticScale;
+        [SerializeField] private int _budgetSoftCapWave = BalanceConstants.WaveBudgetSoftCapWave;
+        [SerializeField] private int _budgetPerWaveAfterSoftCap = BalanceConstants.WaveBudgetPerWaveAfterSoftCap;
 
         [Header("Spawning")]
         [SerializeField] private float _baseSpawnInterval = BalanceConstants.WaveBaseSpawnInterval;
@@ -302,8 +304,24 @@ namespace ETD.Waves
         // =================================================================
 
         private int CalculateBudget(int wave)
-            => _baseBudget + wave * _budgetPerWave
-               + Mathf.RoundToInt(wave * wave * _budgetQuadraticScale);
+        {
+            int safeWave = Mathf.Max(0, wave);
+            int softCapWave = Mathf.Max(0, _budgetSoftCapWave);
+            int curveWave = Mathf.Min(safeWave, softCapWave);
+
+            // Preserve the original linear + quadratic curve through the soft-cap wave.
+            // Beyond it, use a fixed linear increase so enemy counts remain manageable
+            // while HP, elites, bosses, and player scaling continue progressing.
+            long budget = _baseBudget
+                        + (long)curveWave * _budgetPerWave
+                        + Mathf.RoundToInt(curveWave * curveWave * _budgetQuadraticScale);
+
+            if (safeWave > softCapWave)
+                budget += (long)(safeWave - softCapWave)
+                        * Mathf.Max(0, _budgetPerWaveAfterSoftCap);
+
+            return (int)System.Math.Min(int.MaxValue, System.Math.Max(0L, budget));
+        }
 
         private int GetEliteCount(int wave)
         {

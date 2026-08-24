@@ -1,4 +1,8 @@
 {
+  "wiki_waves_size_body_softcap": "Každá vlna utrácí rozpočet za nepřátele. Rozpočet roste lineárně i kvadraticky do vlny {0}, poté přejde na řízený lineární růst, aby vlny se čtyřciferným číslem zůstaly hratelné.",
+  "wiki_waves_budget_softcap": "Měkký limit pozdních vln",
+  "wiki_waves_budget_softcap_val": "od vlny {0}: +{1} rozpočtu za vlnu",
+  "wiki_waves_speed_some_capped": "Většina nepřátel se s postupem vln nezrychluje. Několik — hlavně bossové — získává až {0} za vlnu do vlny {1}. Poté se jejich rychlost pohybu už nezvyšuje, takže zpomalení zůstávají hodnotná i v pozdní fázi hry.",
   "ui_level_up": "NOVÁ ÚROVEŇ!",
   "ui_level": "Úroveň",
   "ui_reroll": "přetáhnout",
