@@ -1533,6 +1533,10 @@ namespace ETD.Turrets
                     // No wrapper here: this allows ChallengeTracker.LaserBatch.*
                     // markers to appear directly in the Profiler.
                     laserSink.OnLaserHitBatch(publishedDt, target.InstanceId);
+
+                    // The optimized challenge sink bypasses LaserHitEvent, so forward
+                    // the same batch directly to the persistent achievement tracker.
+                    SteamAchievementManager.Instance?.RecordLaserHit(publishedDt);
                 }
                 else
                 {

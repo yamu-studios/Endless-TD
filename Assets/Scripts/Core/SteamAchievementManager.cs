@@ -106,6 +106,7 @@ namespace ETD.Core
         {
             LoadCumulativeCounters();
             Subscribe();
+            UnlockCompletedCumulativeAchievements();
         }
 
         private void Update()
@@ -263,6 +264,15 @@ namespace ETD.Core
             // counters could never progress. Count both the batched and single events.
             EventBus.Subscribe<ChainLightningHitBatchEvent>(OnChainHitBatch);
             EventBus.Subscribe<ChainLightningHitEvent>(OnChainHitSingle);
+        }
+
+        /// <summary>
+        /// Restores this persistent manager's listeners after EventBus.Clear removes
+        /// scene-owned subscriptions during a scene transition.
+        /// </summary>
+        public void RestoreEventSubscriptions()
+        {
+            Subscribe();
         }
 
         private void OnChainHitBatch(ChainLightningHitBatchEvent evt) => CountChainHits(evt.Count);
@@ -520,7 +530,24 @@ namespace ETD.Core
 
         private void OnLaserHit(LaserHitEvent evt)
         {
-            _runLaserSeconds += evt.DeltaTime;
+            RecordLaserHit(evt.DeltaTime);
+        }
+
+        /// <summary>
+        /// Records optimized laser telemetry that bypasses the EventBus on the normal
+        /// ChallengeTracker path. The EventBus handler above remains the fallback path.
+        /// </summary>
+        public void RecordLaserHit(float deltaTime)
+        {
+            if (deltaTime <= 0f)
+                return;
+
+            // Tutorial runs are sandboxed and must not contribute progress that could
+            // unlock immediately after returning to the normal hub.
+            if (GameManager.Instance != null && GameManager.Instance.IsTutorialMode)
+                return;
+
+            _runLaserSeconds += deltaTime;
 
             if (_runLaserSeconds >= 15f)
                 Unlock("ACH_LASER_FOCUS");
@@ -613,7 +640,10 @@ namespace ETD.Core
             _totalChainHits = LoadCounter("ach_chain_hits");
             _totalBossesKilled = LoadCounter("ach_total_bosses");
             _totalMeta = LoadCounterF("ach_total_meta");
-            _totalShopBuys = LoadCounter("ach_total_shop_buys");
+            _totalShopBuys = Mathf.Max(
+                LoadCounter("ach_total_shop_buys"),
+                GetSavedShopPurchaseCount());
+            SaveCounter("ach_total_shop_buys", _totalShopBuys);
             _totalChallenges = LoadCounter("ach_total_challenges");
             _totalWeakenApplied = LoadCounter("ach_weaken_applied");
             _totalPoisonApplied = LoadCounter("ach_poison_applied");
@@ -622,6 +652,63 @@ namespace ETD.Core
             // re-places turrets without placement events, so this is the only record.
             _runTurretTypesMask = LoadCounter("ach_run_turret_types");
             _runNewTurretTypesMask = LoadCounter("ach_run_new_turret_types");
+        }
+
+        private void UnlockCompletedCumulativeAchievements()
+        {
+            SaveData save = SaveSystem.Load();
+
+            if (HasCompletedChallenge(save, "challenge_laser_focus"))
+                Unlock("ACH_LASER_FOCUS");
+
+            if (_totalShopBuys >= 1)
+                Unlock("ACH_SHOP_BUY_FIRST");
+
+            if (_totalShopBuys >= 10)
+                Unlock("ACH_SHOP_10_UPGRADES");
+        }
+
+        private static bool HasCompletedChallenge(SaveData save, string challengeId)
+        {
+            if (save?.CompletedChallengeIds == null || string.IsNullOrEmpty(challengeId))
+                return false;
+
+            for (int i = 0; i < save.CompletedChallengeIds.Length; i++)
+            {
+                if (save.CompletedChallengeIds[i] == challengeId)
+                    return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Returns a conservative lower bound for purchases represented by the unified
+        /// save. This lets existing players receive shop achievements even if their old
+        /// PlayerPrefs achievement counter was missing or lost.
+        /// </summary>
+        private static int GetSavedShopPurchaseCount()
+        {
+            SaveData save = SaveSystem.Load();
+            if (save == null)
+                return 0;
+
+            int count = Mathf.Max(0,
+                save.TraitSlotCount - GameConstants.MAX_TRAIT_SLOTS_DEFAULT);
+
+            count += Mathf.Max(0, save.RerollTokens);
+            count += Mathf.Max(0, save.ShopMetaBonusLevel);
+            count += Mathf.Max(0, save.ShopXPMultiplierLevel);
+            count += Mathf.Max(0, save.ShopGoldMultiplierLevel);
+            count += Mathf.Max(0, save.ShopMaxHPLevel);
+
+            if (save.TraitUpgradeLevels != null)
+            {
+                for (int i = 0; i < save.TraitUpgradeLevels.Length; i++)
+                    count += Mathf.Max(0, save.TraitUpgradeLevels[i]);
+            }
+
+            return count;
         }
 
         private static int LoadCounter(string key)

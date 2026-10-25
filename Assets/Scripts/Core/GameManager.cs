@@ -148,6 +148,7 @@ namespace ETD.Core
             AudioManager.Instance?.StopAllGameSounds();
 
             EventBus.Clear();
+            SteamAchievementManager.Instance?.RestoreEventSubscriptions();
             ServiceLocator.Clear();
             ServiceLocator.Register(this);
 
